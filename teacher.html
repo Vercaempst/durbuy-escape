@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Begeleidersdashboard</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+</head>
+<body>
+  <div class="container">
+    <h1>Begeleidersdashboard</h1>
+
+    <div class="card">
+      <h2>Actieve stad</h2>
+      <select id="citySelector"></select>
+      <button id="setCityButton">Activeer stad</button>
+      <p id="currentCityInfo"></p>
+    </div>
+
+    <div class="card">
+      <h2>Zoek leerling</h2>
+      <input id="searchInput" type="text" placeholder="Typ naam leerling">
+      <p id="searchResult"></p>
+    </div>
+
+    <div class="card">
+      <h2>Algemene controle</h2>
+      <div class="button-grid">
+        <button id="sendGatherButton">Stuur iedereen naar verzamelpunt</button>
+        <button id="resumeGameButton">Hervat normaal spel</button>
+      </div>
+      <p id="globalActionFeedback"></p>
+    </div>
+
+    <div class="card">
+      <h2>Live scorebord</h2>
+      <div id="rankingContainer"></div>
+    </div>
+
+    <div id="map"></div>
+
+    <h2>Groepen</h2>
+    <div id="groupsContainer"></div>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script type="module" src="teacher.js"></script>
+</body>
+</html>

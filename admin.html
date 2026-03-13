@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Checkpoint editor</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+</head>
+<body>
+  <div class="container">
+    <h1>Checkpoint editor</h1>
+
+    <div class="card">
+      <h2>Stad</h2>
+      <select id="adminCitySelector"></select>
+      <div class="button-grid">
+        <button id="loadCityButton">Laad stad uit Firebase</button>
+        <button id="loadTemplateButton">Laad standaarddata</button>
+      </div>
+      <p id="adminCityInfo"></p>
+    </div>
+
+    <div id="map"></div>
+
+    <div class="card">
+      <h2>Checkpoint bewerken</h2>
+      <input id="cpName" type="text" placeholder="Naam checkpoint">
+      <input id="cpLat" type="number" step="any" placeholder="Latitude">
+      <input id="cpLng" type="number" step="any" placeholder="Longitude">
+      <input id="cpRadius" type="number" placeholder="Radius in meter">
+      <textarea id="cpQuestion" placeholder="Vraag"></textarea>
+      <input id="cpAnswers" type="text" placeholder="Antwoorden, gescheiden door komma's">
+      <input id="cpPointsCorrect" type="number" placeholder="Punten bij juist antwoord">
+      <input id="cpPointsAfterMaxTries" type="number" placeholder="Punten na 3 pogingen">
+
+      <div class="button-grid">
+        <button id="newCheckpointButton">Nieuw checkpoint</button>
+        <button id="saveCheckpointButton">Opslaan in lijst</button>
+      </div>
+
+      <div class="button-grid">
+        <button id="deleteCheckpointButton">Verwijder geselecteerd checkpoint</button>
+        <button id="saveAllButton">Bewaar alle checkpoints in Firebase</button>
+      </div>
+
+      <p class="small-note">Klik op de kaart om snel latitude en longitude in te vullen.</p>
+      <p id="adminFeedback"></p>
+    </div>
+
+    <div class="card">
+      <h2>Checkpointlijst</h2>
+      <div id="checkpointList"></div>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script type="module" src="admin.js"></script>
+</body>
+</html>

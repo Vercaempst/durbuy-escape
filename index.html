@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>City Escape</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+</head>
+<body>
+  <div class="container">
+    <h1 id="appTitle">City Escape</h1>
+
+    <div class="card">
+      <p id="activeCityLabel">Actieve stad: nog niet ingesteld</p>
+      <p class="small-note">De leerkracht kiest de stad vooraf in het begeleidersdashboard.</p>
+    </div>
+
+    <div id="loginCard" class="card">
+      <h2>Groep aanmelden</h2>
+      <input id="groupName" type="text" placeholder="Groepsnaam">
+      <input id="groupMembers" type="text" placeholder="Leden (vb: Emma - Noah - Liam - Mila)">
+      <button id="startButton">Start spel</button>
+      <p id="loginFeedback"></p>
+    </div>
+
+    <div id="gameArea" class="hidden">
+      <div class="card">
+        <h2 id="teamDisplay"></h2>
+        <p id="modeText">Spelmodus: normaal</p>
+        <p id="status">Locatie wordt opgehaald...</p>
+        <p id="progressText"></p>
+        <p id="scoreText"></p>
+
+        <div id="navigationBox">
+          <div id="arrow">⬆</div>
+          <p id="distanceText"></p>
+          <button id="routeButton">Open route</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Live scorebord</h2>
+        <div id="studentRankingContainer"></div>
+      </div>
+
+      <div id="map"></div>
+    </div>
+  </div>
+
+  <div id="questionModal" class="modal hidden">
+    <div class="modal-content">
+      <h2 id="modalTitle">Checkpoint</h2>
+      <p id="modalQuestion"></p>
+      <input id="modalAnswerInput" type="text" placeholder="Typ hier jullie antwoord">
+      <button id="submitAnswerButton">Controleer antwoord</button>
+      <p id="answerFeedback"></p>
+      <p id="triesFeedback"></p>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script type="module" src="script.js"></script>
+</body>
+</html>
