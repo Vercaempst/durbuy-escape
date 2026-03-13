@@ -109,10 +109,19 @@ export const cities = {
               },
               {
                 name: "Checkpoint 2",
-                coords: [50.951617, 3.123422],
+                coords: [50.951864, 3.123595],
                 radius: 10,
                 question: "In welk lokaal sta je nu?",
-                answers: ["LK206"],
+                answers: ["lk206"],
+                pointsCorrect: 10,
+                pointsAfterMaxTries: 4
+              },
+              {
+                name: "Checkpoint 3",
+                coords: [50.951230, 3.123028],
+                radius: 10,
+                question: "Op welke campus sta je nu?",
+                answers: ["tant"],
                 pointsCorrect: 10,
                 pointsAfterMaxTries: 4
               },
@@ -131,4 +140,5 @@ export const cities = {
       pointsCorrect: 0,
       pointsAfterMaxTries: 0
     };
+
   }
