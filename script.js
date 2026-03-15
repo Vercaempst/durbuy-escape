@@ -31,6 +31,11 @@ let groupListenerStarted = false;
 let globalListenerStarted = false;
 let rankingListenerStarted = false;
 let resetListenerStarted = false;
+let compassListenerStarted = false;
+
+let lastKnownLat = null;
+let lastKnownLng = null;
+let deviceHeading = null;
 
 let gameState = {
   groupId: null,
@@ -220,6 +225,11 @@ function loadCheckpoint() {
 
   questionOpen = false;
   saveLocalState();
+
+  if (lastKnownLat !== null && lastKnownLng !== null) {
+    updateNavigation(lastKnownLat, lastKnownLng);
+    updateRouteLine(lastKnownLat, lastKnownLng);
+  }
 }
 
 function updateRouteLine(lat, lng) {
@@ -243,6 +253,9 @@ function updateRouteLine(lat, lng) {
 }
 
 function updateLocation(lat, lng) {
+  lastKnownLat = lat;
+  lastKnownLng = lng;
+
   if (!playerMarker) {
     playerMarker = L.marker([lat, lng], { icon: playerIcon })
       .addTo(map)
@@ -301,13 +314,83 @@ function checkDistance(lat, lng) {
   }
 }
 
+function toRadians(deg) {
+  return (deg * Math.PI) / 180;
+}
+
+function toDegrees(rad) {
+  return (rad * 180) / Math.PI;
+}
+
+function getBearing(lat1, lng1, lat2, lng2) {
+  const φ1 = toRadians(lat1);
+  const φ2 = toRadians(lat2);
+  const λ1 = toRadians(lng1);
+  const λ2 = toRadians(lng2);
+
+  const y = Math.sin(λ2 - λ1) * Math.cos(φ2);
+  const x =
+    Math.cos(φ1) * Math.sin(φ2) -
+    Math.sin(φ1) * Math.cos(φ2) * Math.cos(λ2 - λ1);
+
+  let bearing = toDegrees(Math.atan2(y, x));
+  bearing = (bearing + 360) % 360;
+  return bearing;
+}
+
 function updateNavigation(lat, lng) {
   const cp = getCurrentCheckpoint();
   if (!cp) return;
 
-  const angle = Math.atan2(cp.coords[1] - lng, cp.coords[0] - lat);
-  const deg = (angle * 180) / Math.PI;
-  document.getElementById("arrow").style.transform = "rotate(" + deg + "deg)";
+  const targetBearing = getBearing(lat, lng, cp.coords[0], cp.coords[1]);
+
+  let rotation = targetBearing;
+
+  if (deviceHeading !== null) {
+    rotation = targetBearing - deviceHeading;
+  }
+
+  document.getElementById("arrow").style.transform =
+    "rotate(" + rotation + "deg)";
+}
+
+function handleOrientation(event) {
+  let heading = null;
+
+  if (typeof event.webkitCompassHeading === "number") {
+    heading = event.webkitCompassHeading;
+  } else if (event.alpha !== null) {
+    heading = 360 - event.alpha;
+  }
+
+  if (heading === null) return;
+
+  deviceHeading = (heading + 360) % 360;
+
+  if (lastKnownLat !== null && lastKnownLng !== null) {
+    updateNavigation(lastKnownLat, lastKnownLng);
+  }
+}
+
+async function enableCompass() {
+  if (compassListenerStarted) return;
+  compassListenerStarted = true;
+
+  if (
+    typeof DeviceOrientationEvent !== "undefined" &&
+    typeof DeviceOrientationEvent.requestPermission === "function"
+  ) {
+    try {
+      const permission = await DeviceOrientationEvent.requestPermission();
+      if (permission === "granted") {
+        window.addEventListener("deviceorientation", handleOrientation, true);
+      }
+    } catch (error) {
+      console.error("Kompas-permissie mislukt:", error);
+    }
+  } else {
+    window.addEventListener("deviceorientation", handleOrientation, true);
+  }
 }
 
 function openQuestion() {
@@ -365,6 +448,11 @@ function finishGame() {
 
   document.getElementById("status").innerText =
     "Proficiat. Ga nu naar het verzamelpunt.";
+
+  if (lastKnownLat !== null && lastKnownLng !== null) {
+    updateNavigation(lastKnownLat, lastKnownLng);
+    updateRouteLine(lastKnownLat, lastKnownLng);
+  }
 
   saveLocalState();
   syncGroup();
@@ -616,6 +704,8 @@ async function startGame() {
     return;
   }
 
+  await enableCompass();
+
   gameState.groupId = generateGroupId();
   gameState.groupNumber = await getNextGroupNumber(currentCityKey);
   gameState.groupName = name;
@@ -658,6 +748,8 @@ async function restoreSessionIfPossible() {
     clearLocalState();
     return;
   }
+
+  await enableCompass();
 
   currentCheckpoints = await loadCheckpointsForCity(currentCityKey);
   cityLoaded = true;
