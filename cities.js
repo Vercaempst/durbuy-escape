@@ -127,6 +127,51 @@ export const cities = {
               },
         ]
       },
+
+    thuis: {
+        name: "TestThuis",
+        center: [50.89795, 3.26638],
+        gather: [50.89795, 3.26638],
+        defaultCheckpoints: [
+            {
+                name: "Checkpoint 1",
+                coords: [50.898054, 3.266636],
+                radius: 10,
+                question: "Waar sta je nu? oprit, keuken, achtertuin of voortuin?",
+                answers: ["oprit"],
+                pointsCorrect: 10,
+                pointsAfterMaxTries: 4
+              },
+              {
+                name: "Checkpoint 2",
+                coords: [50.89791, 3.26626],
+                radius: 10,
+                question: "Waar sta je nu? oprit, keuken, achtertuin of voortuin?",
+                answers: ["keuken"],
+                pointsCorrect: 10,
+                pointsAfterMaxTries: 4
+              },
+              {
+                name: "Checkpoint 3",
+                coords: [50.897954, 3.266054],
+                radius: 10,
+                question: "Waar sta je nu? oprit, keuken, achtertuin of voortuin?",
+                answers: ["achtertuin"],
+                pointsCorrect: 10,
+                pointsAfterMaxTries: 4
+              },
+              {
+                name: "Checkpoint 4",
+                coords: [50.897926, 3.266512],
+                radius: 10,
+                question: "Waar sta je nu? oprit, keuken, achtertuin of voortuin?",
+                answers: ["voortuin"],
+                pointsCorrect: 10,
+                pointsAfterMaxTries: 4
+              },
+        ]
+      },
+
   };
   
   export function getGatherCheckpoint(cityKey){
