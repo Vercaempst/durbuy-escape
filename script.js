@@ -29,6 +29,7 @@ let cityLoaded = false;
 let groupListenerStarted = false;
 let globalListenerStarted = false;
 let rankingListenerStarted = false;
+let resetListenerStarted = false;
 
 let gameState = {
   groupId: null,
@@ -43,7 +44,8 @@ let gameState = {
   lastProcessedNextAt: 0,
   lastProcessedResetAt: 0,
   lastProcessedPointsAt: 0,
-  lastProcessedGlobalAt: 0
+  lastProcessedGlobalAt: 0,
+  lastProcessedHardResetAt: 0
 };
 
 function saveLocalState() {
@@ -477,6 +479,21 @@ function listenGlobalCommands() {
   });
 }
 
+function listenHardReset() {
+  if (resetListenerStarted) return;
+  resetListenerStarted = true;
+
+  onValue(ref(db, "control/globalReset"), (snapshot) => {
+    const data = snapshot.val();
+    if (!data || !data.at) return;
+    if (data.at <= gameState.lastProcessedHardResetAt) return;
+
+    gameState.lastProcessedHardResetAt = data.at;
+    clearLocalState();
+    location.reload();
+  });
+}
+
 function listenStudentRanking() {
   if (rankingListenerStarted) return;
   rankingListenerStarted = true;
@@ -553,6 +570,7 @@ async function startGame() {
   gameState.lastProcessedResetAt = 0;
   gameState.lastProcessedPointsAt = 0;
   gameState.lastProcessedGlobalAt = 0;
+  gameState.lastProcessedHardResetAt = 0;
 
   route = generateRoute(gameState.groupNumber, currentCheckpoints.length);
   routeIndex = 0;
@@ -566,6 +584,7 @@ async function startGame() {
   startGPS();
   listenTeacherCommands();
   listenGlobalCommands();
+  listenHardReset();
   listenStudentRanking();
   saveLocalState();
 }
@@ -593,6 +612,7 @@ async function restoreSessionIfPossible() {
   startGPS();
   listenTeacherCommands();
   listenGlobalCommands();
+  listenHardReset();
   listenStudentRanking();
 }
 
