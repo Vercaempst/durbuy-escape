@@ -34,8 +34,6 @@ let resetListenerStarted = false;
 let compassListenerStarted = false;
 let broadcastListenerStarted = false;
 
-let hasSeenInitialHardResetValue = false;
-
 let lastKnownLat = null;
 let lastKnownLng = null;
 let deviceHeading = null;
@@ -56,7 +54,8 @@ let gameState = {
   lastProcessedGlobalAt: 0,
   lastProcessedHardResetAt: 0,
   lastProcessedMessageAt: 0,
-  lastProcessedBroadcastAt: 0
+  lastProcessedBroadcastAt: 0,
+  sessionStartedAt: 0
 };
 
 const playerIcon = L.divIcon({
@@ -675,7 +674,7 @@ function listenHardReset() {
   if (resetListenerStarted) return;
   resetListenerStarted = true;
 
-  let firstload = true;
+  let firstLoad = true;
 
   onValue(ref(db, "control/globalReset"), (snapshot) => {
     const data = snapshot.val();
@@ -683,10 +682,10 @@ function listenHardReset() {
 
     if (firstLoad) {
       firstLoad = false;
-      gameState.lastProcessecHardResetAt = data.at;
+      gameState.lastProcessedHardResetAt = data.at;
       return;
     }
-    
+
     if (data.at <= gameState.lastProcessedHardResetAt) return;
 
     gameState.lastProcessedHardResetAt = data.at;
@@ -776,6 +775,7 @@ async function startGame() {
   gameState.lastProcessedHardResetAt = 0;
   gameState.lastProcessedMessageAt = 0;
   gameState.lastProcessedBroadcastAt = 0;
+  gameState.sessionStartedAt = Date.now();
 
   route = generateRoute(gameState.groupNumber, currentCheckpoints.length);
   routeIndex = 0;
