@@ -675,9 +675,18 @@ function listenHardReset() {
   if (resetListenerStarted) return;
   resetListenerStarted = true;
 
+  let firstload = true;
+
   onValue(ref(db, "control/globalReset"), (snapshot) => {
     const data = snapshot.val();
     if (!data || !data.at) return;
+
+    if (firstLoad) {
+      firstLoad = false;
+      gameState.lastProcessecHardResetAt = data.at;
+      return;
+    }
+    
     if (data.at <= gameState.lastProcessedHardResetAt) return;
 
     gameState.lastProcessedHardResetAt = data.at;
