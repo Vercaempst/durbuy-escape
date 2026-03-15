@@ -48,6 +48,27 @@ let gameState = {
   lastProcessedHardResetAt: 0
 };
 
+const playerIcon = L.icon({
+  iconUrl: "https://cdn-icons-png.flaticon.com/512/149/149071.png",
+  iconSize: [36, 36],
+  iconAnchor: [18, 36],
+  popupAnchor: [0, -30]
+});
+
+const checkpointIcon = L.icon({
+  iconUrl: "https://cdn-icons-png.flaticon.com/512/684/684908.png",
+  iconSize: [34, 34],
+  iconAnchor: [17, 34],
+  popupAnchor: [0, -28]
+});
+
+const gatherIcon = L.icon({
+  iconUrl: "https://cdn-icons-png.flaticon.com/512/1828/1828884.png",
+  iconSize: [34, 34],
+  iconAnchor: [17, 34],
+  popupAnchor: [0, -28]
+});
+
 function saveLocalState() {
   localStorage.setItem(
     "cityEscapeState",
@@ -134,6 +155,13 @@ function getCurrentCheckpoint() {
   return currentCheckpoints[route[routeIndex]];
 }
 
+function getCurrentMarkerIcon() {
+  if (gameState.gatherMode || gameState.finished) {
+    return gatherIcon;
+  }
+  return checkpointIcon;
+}
+
 function initMap() {
   const center = cities[currentCityKey].center;
 
@@ -153,11 +181,15 @@ function resetMapToCity() {
 
 function loadCheckpoint() {
   const cp = getCurrentCheckpoint();
+  const markerIcon = getCurrentMarkerIcon();
 
   if (checkpointMarker) map.removeLayer(checkpointMarker);
   if (checkpointCircle) map.removeLayer(checkpointCircle);
 
-  checkpointMarker = L.marker(cp.coords).addTo(map).bindPopup(cp.name);
+  checkpointMarker = L.marker(cp.coords, { icon: markerIcon })
+    .addTo(map)
+    .bindPopup(cp.name);
+
   checkpointCircle = L.circle(cp.coords, { radius: cp.radius }).addTo(map);
 
   if (gameState.gatherMode) {
@@ -188,7 +220,9 @@ function loadCheckpoint() {
 
 function updateLocation(lat, lng) {
   if (!playerMarker) {
-    playerMarker = L.marker([lat, lng]).addTo(map).bindPopup("Jullie locatie");
+    playerMarker = L.marker([lat, lng], { icon: playerIcon })
+      .addTo(map)
+      .bindPopup("Jullie locatie");
   } else {
     playerMarker.setLatLng([lat, lng]);
   }
@@ -293,7 +327,7 @@ function finishGame() {
   if (checkpointMarker) map.removeLayer(checkpointMarker);
   if (checkpointCircle) map.removeLayer(checkpointCircle);
 
-  checkpointMarker = L.marker(gather.coords)
+  checkpointMarker = L.marker(gather.coords, { icon: gatherIcon })
     .addTo(map)
     .bindPopup(gather.name)
     .openPopup();
