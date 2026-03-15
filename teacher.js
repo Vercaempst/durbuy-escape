@@ -16,6 +16,7 @@ const db = getDatabase(app);
 let activeCityKey = null;
 let groupsCache = [];
 let markers = {};
+let groupMessageDrafts = {};
 
 const firstCityKey = Object.keys(cities)[0];
 const defaultCenter = cities[firstCityKey].center;
@@ -115,6 +116,7 @@ function renderGroups(groups) {
     .slice()
     .sort((a, b) => (a.groupNumber || 999) - (b.groupNumber || 999))
     .forEach(group => {
+      const draftValue = groupMessageDrafts[group.id] || "";
       const div = document.createElement("div");
       div.className = "group-card";
 
@@ -138,7 +140,13 @@ function renderGroups(groups) {
           <strong>Laatst gezien:</strong> ${group.lastUpdated || "-"}
         </p>
 
-        <input type="text" id="message-${group.id}" placeholder="Typ bericht voor deze groep">
+        <input
+          type="text"
+          id="message-${group.id}"
+          data-group-id="${group.id}"
+          placeholder="Typ bericht voor deze groep"
+          value="${draftValue.replace(/"/g, "&quot;")}"
+        >
 
         <div class="group-actions">
           <button data-action="next" data-id="${group.id}">Volgend checkpoint</button>
@@ -152,6 +160,13 @@ function renderGroups(groups) {
 
       container.appendChild(div);
     });
+
+  container.querySelectorAll("input[data-group-id]").forEach(input => {
+    input.addEventListener("input", (e) => {
+      const groupId = e.target.dataset.groupId;
+      groupMessageDrafts[groupId] = e.target.value;
+    });
+  });
 
   container.querySelectorAll("button[data-action]").forEach(button => {
     button.addEventListener("click", async () => {
@@ -179,9 +194,7 @@ function renderGroups(groups) {
       }
 
       if (action === "message") {
-        const messageInput = document.getElementById("message-" + id);
-        const text = messageInput.value.trim();
-
+        const text = (groupMessageDrafts[id] || "").trim();
         if (!text) return;
 
         await update(ref(db, "groups/" + id), {
@@ -189,7 +202,8 @@ function renderGroups(groups) {
           commandMessageAt: Date.now()
         });
 
-        messageInput.value = "";
+        groupMessageDrafts[id] = "";
+        renderGroups(groupsCache);
       }
 
       if (action === "focus") {
@@ -301,7 +315,7 @@ document.getElementById("sendBroadcastButton").addEventListener("click", async (
 
   if (!text) return;
 
-  await set(ref(db, "control/globalCommands/" + activeCityKey + "/broadcast"), {
+  await set(ref(db, "control/broadcasts/" + activeCityKey), {
     text: text,
     at: Date.now()
   });
