@@ -179,7 +179,7 @@ export const cities = {
     return {
       name: "Verzamelpunt",
       coords: city.gather,
-      radius: 20,
+      radius: 10,
       question: "",
       answers: [],
       pointsCorrect: 0,
