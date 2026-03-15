@@ -6,7 +6,6 @@ import {
   getDatabase,
   ref,
   get,
-  set,
   update,
   runTransaction,
   onValue
@@ -47,17 +46,20 @@ let gameState = {
   lastProcessedGlobalAt: 0
 };
 
-function saveLocalState(){
-  localStorage.setItem("cityEscapeState", JSON.stringify({
-    gameState,
-    route,
-    routeIndex
-  }));
+function saveLocalState() {
+  localStorage.setItem(
+    "cityEscapeState",
+    JSON.stringify({
+      gameState,
+      route,
+      routeIndex
+    })
+  );
 }
 
-function loadLocalState(){
+function loadLocalState() {
   const saved = localStorage.getItem("cityEscapeState");
-  if(!saved) return false;
+  if (!saved) return false;
 
   const parsed = JSON.parse(saved);
   gameState = parsed.gameState;
@@ -66,27 +68,30 @@ function loadLocalState(){
   return true;
 }
 
-function clearLocalState(){
+function clearLocalState() {
   localStorage.removeItem("cityEscapeState");
 }
 
-function setActiveCityUI(cityKey){
-  if(!cityKey || !cities[cityKey]){
-    document.getElementById("activeCityLabel").innerText = "Actieve stad: nog niet ingesteld";
+function setActiveCityUI(cityKey) {
+  if (!cityKey || !cities[cityKey]) {
+    document.getElementById("activeCityLabel").innerText =
+      "Actieve stad: nog niet ingesteld";
     document.getElementById("appTitle").innerText = "City Escape";
     return;
   }
 
-  document.getElementById("activeCityLabel").innerText = "Actieve stad: " + cities[cityKey].name;
-  document.getElementById("appTitle").innerText = cities[cityKey].name + " Escape";
+  document.getElementById("activeCityLabel").innerText =
+    "Actieve stad: " + cities[cityKey].name;
+  document.getElementById("appTitle").innerText =
+    cities[cityKey].name + " Escape";
 }
 
-async function loadCheckpointsForCity(cityKey){
+async function loadCheckpointsForCity(cityKey) {
   const snapshot = await get(ref(db, "cityData/" + cityKey + "/checkpoints"));
 
-  if(snapshot.exists()){
+  if (snapshot.exists()) {
     const data = snapshot.val();
-    if(Array.isArray(data) && data.length > 0){
+    if (Array.isArray(data) && data.length > 0) {
       return data;
     }
   }
@@ -94,11 +99,11 @@ async function loadCheckpointsForCity(cityKey){
   return cities[cityKey].defaultCheckpoints || [];
 }
 
-function generateGroupId(){
+function generateGroupId() {
   return "group_" + Date.now() + "_" + Math.floor(Math.random() * 100000);
 }
 
-async function getNextGroupNumber(cityKey){
+async function getNextGroupNumber(cityKey) {
   const counterRef = ref(db, "meta/groupCounters/" + cityKey);
 
   const result = await runTransaction(counterRef, (current) => {
@@ -108,28 +113,26 @@ async function getNextGroupNumber(cityKey){
   return result.snapshot.val();
 }
 
-function generateRoute(groupNumber, checkpointCount){
+function generateRoute(groupNumber, checkpointCount) {
   const start = (groupNumber - 1) % checkpointCount;
   const r = [];
 
-  for(let i = 0; i < checkpointCount; i++){
+  for (let i = 0; i < checkpointCount; i++) {
     r.push((start + i) % checkpointCount);
   }
 
   return r;
 }
 
-function getCurrentCheckpoint(){
-  if(gameState.gatherMode){
+function getCurrentCheckpoint() {
+  if (gameState.gatherMode || gameState.finished) {
     return getGatherCheckpoint(currentCityKey);
   }
-
-  if(gameState.finished) return null;
 
   return currentCheckpoints[route[routeIndex]];
 }
 
-function initMap(){
+function initMap() {
   const center = cities[currentCityKey].center;
 
   map = L.map("map").setView(center, 16);
@@ -141,39 +144,37 @@ function initMap(){
   loadCheckpoint();
 }
 
-function resetMapToCity(){
+function resetMapToCity() {
   const center = cities[currentCityKey].center;
   map.setView(center, 16);
 }
 
-function loadCheckpoint(){
+function loadCheckpoint() {
   const cp = getCurrentCheckpoint();
 
-  if(checkpointMarker) map.removeLayer(checkpointMarker);
-  if(checkpointCircle) map.removeLayer(checkpointCircle);
-
-  if(!cp){
-    document.getElementById("progressText").innerText = "Alle checkpoints afgerond";
-    document.getElementById("scoreText").innerText = "Eindscore: " + gameState.score;
-    document.getElementById("distanceText").innerText = "";
-    closeQuestion();
-    saveLocalState();
-    return;
-  }
+  if (checkpointMarker) map.removeLayer(checkpointMarker);
+  if (checkpointCircle) map.removeLayer(checkpointCircle);
 
   checkpointMarker = L.marker(cp.coords).addTo(map).bindPopup(cp.name);
   checkpointCircle = L.circle(cp.coords, { radius: cp.radius }).addTo(map);
 
-  if(gameState.gatherMode){
+  if (gameState.gatherMode) {
     document.getElementById("modeText").innerText = "Spelmodus: verzamelpunt";
-    document.getElementById("progressText").innerText = "Iedereen naar het verzamelpunt";
+    document.getElementById("progressText").innerText =
+      "Iedereen naar het verzamelpunt";
+  } else if (gameState.finished) {
+    document.getElementById("modeText").innerText = "Spelmodus: afgerond";
+    document.getElementById("progressText").innerText =
+      "Alle checkpoints afgerond";
   } else {
     document.getElementById("modeText").innerText = "Spelmodus: normaal";
     document.getElementById("progressText").innerText =
       "Checkpoint " + (routeIndex + 1) + " / " + route.length;
   }
 
-  document.getElementById("scoreText").innerText = "Score: " + gameState.score;
+  document.getElementById("scoreText").innerText =
+    (gameState.finished ? "Eindscore: " : "Score: ") + gameState.score;
+
   document.getElementById("answerFeedback").innerText = "";
   document.getElementById("triesFeedback").innerText = "";
   document.getElementById("modalAnswerInput").value = "";
@@ -183,8 +184,8 @@ function loadCheckpoint(){
   saveLocalState();
 }
 
-function updateLocation(lat, lng){
-  if(!playerMarker){
+function updateLocation(lat, lng) {
+  if (!playerMarker) {
     playerMarker = L.marker([lat, lng]).addTo(map).bindPopup("Jullie locatie");
   } else {
     playerMarker.setLatLng([lat, lng]);
@@ -195,15 +196,16 @@ function updateLocation(lat, lng){
   syncGroup(lat, lng);
 }
 
-function checkDistance(lat, lng){
+function checkDistance(lat, lng) {
   const cp = getCurrentCheckpoint();
-  if(!cp) return;
+  if (!cp) return;
 
   const dist = map.distance([lat, lng], cp.coords);
-  document.getElementById("distanceText").innerText = "Afstand: " + Math.round(dist) + " m";
+  document.getElementById("distanceText").innerText =
+    "Afstand: " + Math.round(dist) + " m";
 
-  if(gameState.gatherMode){
-    if(dist < cp.radius){
+  if (gameState.gatherMode) {
+    if (dist < cp.radius) {
       document.getElementById("status").innerText =
         "Jullie zijn aangekomen op het verzamelpunt. Wacht op verdere instructies.";
     } else {
@@ -213,15 +215,23 @@ function checkDistance(lat, lng){
     return;
   }
 
-  if(gameState.finished){
-    document.getElementById("status").innerText = "Missie voltooid.";
+  if (gameState.finished) {
+    if (dist < cp.radius) {
+      document.getElementById("status").innerText =
+        "Jullie zijn aangekomen op het verzamelpunt. Proficiat met jullie score.";
+    } else {
+      document.getElementById("status").innerText =
+        "Proficiat. Ga nu naar het verzamelpunt. Nog " +
+        Math.round(dist) +
+        " meter.";
+    }
     return;
   }
 
-  if(dist < cp.radius){
+  if (dist < cp.radius) {
     document.getElementById("status").innerText =
       "Jullie zijn aangekomen bij " + cp.name + ".";
-    if(!questionOpen){
+    if (!questionOpen) {
       openQuestion();
     }
   } else {
@@ -230,24 +240,20 @@ function checkDistance(lat, lng){
   }
 }
 
-function updateNavigation(lat, lng){
+function updateNavigation(lat, lng) {
   const cp = getCurrentCheckpoint();
-  if(!cp) return;
+  if (!cp) return;
 
-  const angle = Math.atan2(
-    cp.coords[1] - lng,
-    cp.coords[0] - lat
-  );
-
-  const deg = angle * 180 / Math.PI;
+  const angle = Math.atan2(cp.coords[1] - lng, cp.coords[0] - lat);
+  const deg = (angle * 180) / Math.PI;
   document.getElementById("arrow").style.transform = "rotate(" + deg + "deg)";
 }
 
-function openQuestion(){
-  if(gameState.gatherMode || gameState.finished) return;
+function openQuestion() {
+  if (gameState.gatherMode || gameState.finished) return;
 
   const cp = getCurrentCheckpoint();
-  if(!cp) return;
+  if (!cp) return;
 
   questionOpen = true;
   document.getElementById("modalTitle").innerText = cp.name;
@@ -255,18 +261,64 @@ function openQuestion(){
   document.getElementById("questionModal").classList.remove("hidden");
 }
 
-function closeQuestion(){
+function closeQuestion() {
   document.getElementById("questionModal").classList.add("hidden");
   questionOpen = false;
 }
 
-function checkAnswer(){
+function finishGame() {
+  gameState.finished = true;
+  gameState.gatherMode = false;
+  closeQuestion();
+
+  const gather = getGatherCheckpoint(currentCityKey);
+
+  document.getElementById("modeText").innerText = "Spelmodus: afgerond";
+  document.getElementById("progressText").innerText =
+    "Alle checkpoints afgerond";
+  document.getElementById("scoreText").innerText =
+    "Eindscore: " + gameState.score;
+
+  alert(
+    "Proficiat! 🎉\n\n" +
+      "Jullie hebben alle checkpoints voltooid.\n\n" +
+      "Jullie behaalden een score van: " +
+      gameState.score +
+      " punten.\n\n" +
+      "Ga nu naar het verzamelpunt."
+  );
+
+  if (checkpointMarker) map.removeLayer(checkpointMarker);
+  if (checkpointCircle) map.removeLayer(checkpointCircle);
+
+  checkpointMarker = L.marker(gather.coords)
+    .addTo(map)
+    .bindPopup(gather.name)
+    .openPopup();
+
+  checkpointCircle = L.circle(gather.coords, {
+    radius: gather.radius
+  }).addTo(map);
+
+  map.setView(gather.coords, 18);
+
+  document.getElementById("status").innerText =
+    "Proficiat. Ga nu naar het verzamelpunt.";
+
+  saveLocalState();
+  syncGroup();
+}
+
+function checkAnswer() {
   const cp = getCurrentCheckpoint();
-  if(!cp) return;
+  if (!cp || gameState.finished) return;
 
-  const input = document.getElementById("modalAnswerInput").value.toLowerCase().trim();
+  const input = document
+    .getElementById("modalAnswerInput")
+    .value.toLowerCase()
+    .trim();
 
-  if(cp.answers.includes(input)){
+  if (cp.answers.includes(input)) {
     gameState.score += Number(cp.pointsCorrect || 0);
     nextCheckpoint();
     return;
@@ -274,11 +326,12 @@ function checkAnswer(){
 
   gameState.currentTries++;
 
-  if(gameState.currentTries >= 3){
+  if (gameState.currentTries >= 3) {
     gameState.score += Number(cp.pointsAfterMaxTries || 0);
     nextCheckpoint();
   } else {
-    document.getElementById("answerFeedback").innerText = "Niet juist, probeer opnieuw.";
+    document.getElementById("answerFeedback").innerText =
+      "Niet juist, probeer opnieuw.";
     document.getElementById("triesFeedback").innerText =
       "Pogingen over: " + (3 - gameState.currentTries);
   }
@@ -286,17 +339,13 @@ function checkAnswer(){
   saveLocalState();
 }
 
-function nextCheckpoint(){
+function nextCheckpoint() {
   closeQuestion();
   gameState.currentTries = 0;
   routeIndex++;
 
-  if(routeIndex >= route.length){
-    gameState.finished = true;
-    document.getElementById("status").innerText = "Missie voltooid.";
-    loadCheckpoint();
-    saveLocalState();
-    syncGroup();
+  if (routeIndex >= route.length) {
+    finishGame();
     return;
   }
 
@@ -304,13 +353,14 @@ function nextCheckpoint(){
   saveLocalState();
 }
 
-function startGPS(){
+function startGPS() {
   navigator.geolocation.watchPosition(
-    pos => {
+    (pos) => {
       updateLocation(pos.coords.latitude, pos.coords.longitude);
     },
-    err => {
-      document.getElementById("status").innerText = "GPS kon niet worden opgehaald.";
+    (err) => {
+      document.getElementById("status").innerText =
+        "GPS kon niet worden opgehaald.";
       console.error(err);
     },
     {
@@ -321,14 +371,14 @@ function startGPS(){
   );
 }
 
-function getCheckpointNameForSync(){
-  if(gameState.finished) return "Afgerond";
+function getCheckpointNameForSync() {
+  if (gameState.finished) return "Verzamelpunt";
   const cp = getCurrentCheckpoint();
   return cp ? cp.name : "-";
 }
 
-function syncGroup(lat = null, lng = null){
-  if(!gameState.groupId || !currentCityKey) return;
+function syncGroup(lat = null, lng = null) {
+  if (!gameState.groupId || !currentCityKey) return;
 
   const payload = {
     cityKey: currentCityKey,
@@ -337,13 +387,13 @@ function syncGroup(lat = null, lng = null){
     groupMembers: gameState.groupMembers,
     score: gameState.score,
     checkpoint: getCheckpointNameForSync(),
-    gatherMode: gameState.gatherMode,
+    gatherMode: gameState.gatherMode || gameState.finished,
     finished: gameState.finished,
     routeIndex: routeIndex,
     lastUpdated: new Date().toISOString()
   };
 
-  if(lat !== null && lng !== null){
+  if (lat !== null && lng !== null) {
     payload.lat = lat;
     payload.lng = lng;
   }
@@ -351,31 +401,41 @@ function syncGroup(lat = null, lng = null){
   update(ref(db, "groups/" + gameState.groupId), payload);
 }
 
-function listenTeacherCommands(){
-  if(groupListenerStarted || !gameState.groupId) return;
+function listenTeacherCommands() {
+  if (groupListenerStarted || !gameState.groupId) return;
   groupListenerStarted = true;
 
   onValue(ref(db, "groups/" + gameState.groupId), (snapshot) => {
     const data = snapshot.val();
-    if(!data) return;
+    if (!data) return;
 
-    if(data.commandNextAt && data.commandNextAt > gameState.lastProcessedNextAt){
+    if (
+      data.commandNextAt &&
+      data.commandNextAt > gameState.lastProcessedNextAt
+    ) {
       gameState.lastProcessedNextAt = data.commandNextAt;
-      if(!gameState.gatherMode && !gameState.finished){
+      if (!gameState.gatherMode && !gameState.finished) {
         nextCheckpoint();
       }
       saveLocalState();
     }
 
-    if(data.commandPointsAt && data.commandPointsAt > gameState.lastProcessedPointsAt){
+    if (
+      data.commandPointsAt &&
+      data.commandPointsAt > gameState.lastProcessedPointsAt
+    ) {
       gameState.lastProcessedPointsAt = data.commandPointsAt;
       gameState.score += Number(data.commandPointsValue || 0);
-      document.getElementById("scoreText").innerText = "Score: " + gameState.score;
+      document.getElementById("scoreText").innerText =
+        (gameState.finished ? "Eindscore: " : "Score: ") + gameState.score;
       saveLocalState();
       syncGroup();
     }
 
-    if(data.commandResetAt && data.commandResetAt > gameState.lastProcessedResetAt){
+    if (
+      data.commandResetAt &&
+      data.commandResetAt > gameState.lastProcessedResetAt
+    ) {
       gameState.lastProcessedResetAt = data.commandResetAt;
       clearLocalState();
       location.reload();
@@ -383,18 +443,18 @@ function listenTeacherCommands(){
   });
 }
 
-function listenGlobalCommands(){
-  if(globalListenerStarted || !currentCityKey) return;
+function listenGlobalCommands() {
+  if (globalListenerStarted || !currentCityKey) return;
   globalListenerStarted = true;
 
   onValue(ref(db, "control/globalCommands/" + currentCityKey), (snapshot) => {
     const data = snapshot.val();
-    if(!data || !data.at) return;
-    if(data.at <= gameState.lastProcessedGlobalAt) return;
+    if (!data || !data.at) return;
+    if (data.at <= gameState.lastProcessedGlobalAt) return;
 
     gameState.lastProcessedGlobalAt = data.at;
 
-    if(data.type === "gather"){
+    if (data.type === "gather") {
       gameState.gatherMode = true;
       closeQuestion();
       loadCheckpoint();
@@ -402,12 +462,14 @@ function listenGlobalCommands(){
         "De begeleider heeft iedereen naar het verzamelpunt gestuurd.";
     }
 
-    if(data.type === "resume"){
-      gameState.gatherMode = false;
-      closeQuestion();
-      loadCheckpoint();
-      document.getElementById("status").innerText =
-        "Het normale spel is hervat.";
+    if (data.type === "resume") {
+      if (!gameState.finished) {
+        gameState.gatherMode = false;
+        closeQuestion();
+        loadCheckpoint();
+        document.getElementById("status").innerText =
+          "Het normale spel is hervat.";
+      }
     }
 
     saveLocalState();
@@ -415,8 +477,8 @@ function listenGlobalCommands(){
   });
 }
 
-function listenStudentRanking(){
-  if(rankingListenerStarted) return;
+function listenStudentRanking() {
+  if (rankingListenerStarted) return;
   rankingListenerStarted = true;
 
   onValue(ref(db, "groups"), (snapshot) => {
@@ -424,17 +486,17 @@ function listenStudentRanking(){
     const container = document.getElementById("studentRankingContainer");
     container.innerHTML = "";
 
-    if(!data || !currentCityKey){
+    if (!data || !currentCityKey) {
       container.innerHTML = "<p>Nog geen scoregegevens beschikbaar.</p>";
       return;
     }
 
     const groups = Object.values(data)
-      .filter(g => g.cityKey === currentCityKey)
+      .filter((g) => g.cityKey === currentCityKey)
       .sort((a, b) => (b.score || 0) - (a.score || 0))
       .slice(0, 10);
 
-    if(groups.length === 0){
+    if (groups.length === 0) {
       container.innerHTML = "<p>Nog geen scoregegevens beschikbaar.</p>";
       return;
     }
@@ -451,28 +513,28 @@ function listenStudentRanking(){
   });
 }
 
-async function startGame(){
+async function startGame() {
   const name = document.getElementById("groupName").value.trim();
   const members = document.getElementById("groupMembers").value.trim();
 
-  if(!currentCityKey){
+  if (!currentCityKey) {
     document.getElementById("loginFeedback").innerText =
       "De leerkracht heeft nog geen stad geactiveerd.";
     return;
   }
 
-  if(!cityLoaded){
+  if (!cityLoaded) {
     document.getElementById("loginFeedback").innerText =
       "De stad wordt nog geladen. Probeer binnen enkele seconden opnieuw.";
     return;
   }
 
-  if(!name || !members){
+  if (!name || !members) {
     document.getElementById("loginFeedback").innerText = "Vul alles in.";
     return;
   }
 
-  if(currentCheckpoints.length === 0){
+  if (currentCheckpoints.length === 0) {
     document.getElementById("loginFeedback").innerText =
       "Er zijn nog geen checkpoints ingesteld voor deze stad.";
     return;
@@ -508,13 +570,13 @@ async function startGame(){
   saveLocalState();
 }
 
-async function restoreSessionIfPossible(){
+async function restoreSessionIfPossible() {
   const hasSession = loadLocalState();
-  if(!hasSession) return;
+  if (!hasSession) return;
 
-  if(!gameState.cityKey || !currentCityKey) return;
+  if (!gameState.cityKey || !currentCityKey) return;
 
-  if(gameState.cityKey !== currentCityKey){
+  if (gameState.cityKey !== currentCityKey) {
     clearLocalState();
     return;
   }
@@ -534,20 +596,20 @@ async function restoreSessionIfPossible(){
   listenStudentRanking();
 }
 
-async function handleCityChange(cityKey){
+async function handleCityChange(cityKey) {
   currentCityKey = cityKey;
   setActiveCityUI(cityKey);
 
-  if(!cityKey || !cities[cityKey]) return;
+  if (!cityKey || !cities[cityKey]) return;
 
   currentCheckpoints = await loadCheckpointsForCity(cityKey);
   cityLoaded = true;
 
-  if(map){
+  if (map) {
     resetMapToCity();
   }
 
-  if(!gameState.groupId){
+  if (!gameState.groupId) {
     await restoreSessionIfPossible();
   }
 }
@@ -562,7 +624,13 @@ document.getElementById("submitAnswerButton").onclick = checkAnswer;
 
 document.getElementById("routeButton").onclick = () => {
   const cp = getCurrentCheckpoint();
-  if(!cp) return;
-  const url = "https://www.google.com/maps/dir/?api=1&destination=" + cp.coords[0] + "," + cp.coords[1];
+  if (!cp) return;
+
+  const url =
+    "https://www.google.com/maps/dir/?api=1&destination=" +
+    cp.coords[0] +
+    "," +
+    cp.coords[1];
+
   window.open(url, "_blank");
 };
