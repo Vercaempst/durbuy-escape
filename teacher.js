@@ -92,6 +92,13 @@ async function loadCheckpointsForCity(cityKey) {
   return cities[cityKey]?.defaultCheckpoints || [];
 }
 
+async function ensureCityCheckpointsLoaded() {
+  if (!activeCityKey) return;
+  if (cityCheckpointsCache.length > 0) return;
+
+  cityCheckpointsCache = await loadCheckpointsForCity(activeCityKey);
+}
+
 function generateRoute(groupNumber, checkpointCount) {
   const start = (groupNumber - 1) % checkpointCount;
   const route = [];
@@ -217,9 +224,20 @@ function getGroupRouteSteps(group) {
 
   return route.map((checkpointIndex, orderIndex) => {
     const cp = cityCheckpointsCache[checkpointIndex];
-    const isDone = !group.gatherMode && !group.finished && orderIndex < (group.routeIndex || 0);
-    const isCurrent = !group.gatherMode && !group.finished && orderIndex === (group.routeIndex || 0);
-    const isTodo = !group.gatherMode && !group.finished && orderIndex > (group.routeIndex || 0);
+    const isDone =
+      !group.gatherMode &&
+      !group.finished &&
+      orderIndex < (group.routeIndex || 0);
+
+    const isCurrent =
+      !group.gatherMode &&
+      !group.finished &&
+      orderIndex === (group.routeIndex || 0);
+
+    const isTodo =
+      !group.gatherMode &&
+      !group.finished &&
+      orderIndex > (group.routeIndex || 0);
 
     return {
       order: orderIndex + 1,
@@ -232,7 +250,7 @@ function getGroupRouteSteps(group) {
   });
 }
 
-function renderGroupDetail(group) {
+async function renderGroupDetail(group) {
   const container = document.getElementById("groupDetailContainer");
 
   if (!group) {
@@ -240,6 +258,8 @@ function renderGroupDetail(group) {
     container.innerHTML = "<p>Klik op een groep om de volledige route en detailinfo te zien.</p>";
     return;
   }
+
+  await ensureCityCheckpointsLoaded();
 
   const steps = getGroupRouteSteps(group);
 
@@ -264,11 +284,7 @@ function renderGroupDetail(group) {
       if (step.isDone) prefix = "✅";
       if (step.isCurrent) prefix = "🎯";
 
-      routeHtml += `
-        <p>
-          ${prefix} ${step.order}. ${step.cp.name}
-        </p>
-      `;
+      routeHtml += `<p>${prefix} ${step.order}. ${step.cp.name}</p>`;
     });
 
     routeHtml += `</div>`;
@@ -477,7 +493,7 @@ function renderGroups(groups, force = false) {
         lastGroupsRenderSignature = "";
         renderGroups(groupsCache, true);
         const group = groupsCache.find(g => g.id === id);
-        renderGroupDetail(group || null);
+        await renderGroupDetail(group || null);
       }
 
       if (action === "next") {
@@ -521,7 +537,7 @@ function renderGroups(groups, force = false) {
           selectedGroupId = id;
           lastGroupsRenderSignature = "";
           renderGroups(groupsCache, true);
-          renderGroupDetail(hit);
+          await renderGroupDetail(hit);
           markers[id].openPopup();
           map.setView(markers[id].getLatLng(), 18);
         }
@@ -567,11 +583,11 @@ function renderSearchResult(hit) {
     </div>
   `;
 
-  document.getElementById("focusSearchResultButton").addEventListener("click", () => {
+  document.getElementById("focusSearchResultButton").addEventListener("click", async () => {
     selectedGroupId = hit.id;
     lastGroupsRenderSignature = "";
     renderGroups(groupsCache, true);
-    renderGroupDetail(hit);
+    await renderGroupDetail(hit);
     if (markers[hit.id]) {
       markers[hit.id].openPopup();
       map.setView(markers[hit.id].getLatLng(), 18);
