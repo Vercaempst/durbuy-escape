@@ -626,42 +626,46 @@ function listenGlobalCommands() {
 
   onValue(ref(db, "control/globalCommands/" + currentCityKey), (snapshot) => {
     const data = snapshot.val();
-    if (!data) return;
+    if (!data || !data.at) return;
+    if (data.at <= gameState.lastProcessedGlobalAt) return;
 
-    if (data.at && data.at > gameState.lastProcessedGlobalAt) {
-      gameState.lastProcessedGlobalAt = data.at;
+    gameState.lastProcessedGlobalAt = data.at;
 
-      if (data.type === "gather") {
-        gameState.gatherMode = true;
+    if (data.type === "gather") {
+      gameState.gatherMode = true;
+      closeQuestion();
+      loadCheckpoint();
+      document.getElementById("status").innerText =
+        "De begeleider heeft iedereen naar het verzamelpunt gestuurd.";
+    }
+
+    if (data.type === "resume") {
+      if (!gameState.finished) {
+        gameState.gatherMode = false;
         closeQuestion();
         loadCheckpoint();
         document.getElementById("status").innerText =
-          "De begeleider heeft iedereen naar het verzamelpunt gestuurd.";
+          "Het normale spel is hervat.";
       }
-
-      if (data.type === "resume") {
-        if (!gameState.finished) {
-          gameState.gatherMode = false;
-          closeQuestion();
-          loadCheckpoint();
-          document.getElementById("status").innerText =
-            "Het normale spel is hervat.";
-        }
-      }
-
-      saveLocalState();
-      syncGroup();
     }
 
-    if (
-      data.broadcast &&
-      data.broadcast.at &&
-      data.broadcast.at > gameState.lastProcessedBroadcastAt
-    ) {
-      gameState.lastProcessedBroadcastAt = data.broadcast.at;
-      showTeacherMessage(data.broadcast.text || "Algemeen bericht");
-      saveLocalState();
-    }
+    saveLocalState();
+    syncGroup();
+  });
+}
+
+function listenBroadcastMessages() {
+  if (broadcastListenerStarted || !currentCityKey) return;
+  broadcastListenerStarted = true;
+
+  onValue(ref(db, "control/broadcasts/" + currentCityKey), (snapshot) => {
+    const data = snapshot.val();
+    if (!data || !data.at) return;
+    if (data.at <= gameState.lastProcessedBroadcastAt) return;
+
+    gameState.lastProcessedBroadcastAt = data.at;
+    showTeacherMessage(data.text || "Algemeen bericht");
+    saveLocalState();
   });
 }
 
@@ -774,6 +778,7 @@ async function startGame() {
   startGPS();
   listenTeacherCommands();
   listenGlobalCommands();
+  listenBroadcastMessages();
   listenHardReset();
   listenStudentRanking();
   saveLocalState();
@@ -804,6 +809,7 @@ async function restoreSessionIfPossible() {
   startGPS();
   listenTeacherCommands();
   listenGlobalCommands();
+  listenBroadcastMessages();
   listenHardReset();
   listenStudentRanking();
 }
