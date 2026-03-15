@@ -34,6 +34,8 @@ let resetListenerStarted = false;
 let compassListenerStarted = false;
 let broadcastListenerStarted = false;
 
+let hasSeenInitialHardResetValue = false;
+
 let lastKnownLat = null;
 let lastKnownLng = null;
 let deviceHeading = null;
@@ -762,7 +764,7 @@ async function startGame() {
   gameState.lastProcessedResetAt = 0;
   gameState.lastProcessedPointsAt = 0;
   gameState.lastProcessedGlobalAt = 0;
-  gameState.lastProcessedHardResetAt = Date.now();
+  gameState.lastProcessedHardResetAt = 0;
   gameState.lastProcessedMessageAt = 0;
   gameState.lastProcessedBroadcastAt = 0;
 
@@ -796,8 +798,6 @@ async function restoreSessionIfPossible() {
   }
 
   await enableCompass();
-
-  gameState.lastProcessedHardResetAt = Date.now();
 
   currentCheckpoints = await loadCheckpointsForCity(currentCityKey);
   cityLoaded = true;
