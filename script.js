@@ -32,6 +32,7 @@ let globalListenerStarted = false;
 let rankingListenerStarted = false;
 let resetListenerStarted = false;
 let compassListenerStarted = false;
+let broadcastListenerStarted = false;
 
 let lastKnownLat = null;
 let lastKnownLng = null;
@@ -51,7 +52,9 @@ let gameState = {
   lastProcessedResetAt: 0,
   lastProcessedPointsAt: 0,
   lastProcessedGlobalAt: 0,
-  lastProcessedHardResetAt: 0
+  lastProcessedHardResetAt: 0,
+  lastProcessedMessageAt: 0,
+  lastProcessedBroadcastAt: 0
 };
 
 const playerIcon = L.divIcon({
@@ -169,6 +172,12 @@ function getCurrentMarkerIcon() {
     return gatherIcon;
   }
   return checkpointIcon;
+}
+
+function getNextCheckpointName() {
+  if (gameState.finished) return "Afgerond";
+  const cp = getCurrentCheckpoint();
+  return cp ? cp.name : "-";
 }
 
 function initMap() {
@@ -410,6 +419,15 @@ function closeQuestion() {
   questionOpen = false;
 }
 
+function showTeacherMessage(text) {
+  document.getElementById("teacherMessageText").innerText = text;
+  document.getElementById("messageModal").classList.remove("hidden");
+}
+
+function closeTeacherMessage() {
+  document.getElementById("messageModal").classList.add("hidden");
+}
+
 function finishGame() {
   gameState.finished = true;
   gameState.gatherMode = false;
@@ -536,6 +554,7 @@ function syncGroup(lat = null, lng = null) {
     groupMembers: gameState.groupMembers,
     score: gameState.score,
     checkpoint: getCheckpointNameForSync(),
+    nextCheckpoint: getNextCheckpointName(),
     gatherMode: gameState.gatherMode || gameState.finished,
     finished: gameState.finished,
     routeIndex: routeIndex,
@@ -582,6 +601,15 @@ function listenTeacherCommands() {
     }
 
     if (
+      data.commandMessageAt &&
+      data.commandMessageAt > gameState.lastProcessedMessageAt
+    ) {
+      gameState.lastProcessedMessageAt = data.commandMessageAt;
+      showTeacherMessage(data.commandMessageText || "Bericht van de leerkracht");
+      saveLocalState();
+    }
+
+    if (
       data.commandResetAt &&
       data.commandResetAt > gameState.lastProcessedResetAt
     ) {
@@ -598,31 +626,42 @@ function listenGlobalCommands() {
 
   onValue(ref(db, "control/globalCommands/" + currentCityKey), (snapshot) => {
     const data = snapshot.val();
-    if (!data || !data.at) return;
-    if (data.at <= gameState.lastProcessedGlobalAt) return;
+    if (!data) return;
 
-    gameState.lastProcessedGlobalAt = data.at;
+    if (data.at && data.at > gameState.lastProcessedGlobalAt) {
+      gameState.lastProcessedGlobalAt = data.at;
 
-    if (data.type === "gather") {
-      gameState.gatherMode = true;
-      closeQuestion();
-      loadCheckpoint();
-      document.getElementById("status").innerText =
-        "De begeleider heeft iedereen naar het verzamelpunt gestuurd.";
-    }
-
-    if (data.type === "resume") {
-      if (!gameState.finished) {
-        gameState.gatherMode = false;
+      if (data.type === "gather") {
+        gameState.gatherMode = true;
         closeQuestion();
         loadCheckpoint();
         document.getElementById("status").innerText =
-          "Het normale spel is hervat.";
+          "De begeleider heeft iedereen naar het verzamelpunt gestuurd.";
       }
+
+      if (data.type === "resume") {
+        if (!gameState.finished) {
+          gameState.gatherMode = false;
+          closeQuestion();
+          loadCheckpoint();
+          document.getElementById("status").innerText =
+            "Het normale spel is hervat.";
+        }
+      }
+
+      saveLocalState();
+      syncGroup();
     }
 
-    saveLocalState();
-    syncGroup();
+    if (
+      data.broadcast &&
+      data.broadcast.at &&
+      data.broadcast.at > gameState.lastProcessedBroadcastAt
+    ) {
+      gameState.lastProcessedBroadcastAt = data.broadcast.at;
+      showTeacherMessage(data.broadcast.text || "Algemeen bericht");
+      saveLocalState();
+    }
   });
 }
 
@@ -720,6 +759,8 @@ async function startGame() {
   gameState.lastProcessedPointsAt = 0;
   gameState.lastProcessedGlobalAt = 0;
   gameState.lastProcessedHardResetAt = 0;
+  gameState.lastProcessedMessageAt = 0;
+  gameState.lastProcessedBroadcastAt = 0;
 
   route = generateRoute(gameState.groupNumber, currentCheckpoints.length);
   routeIndex = 0;
@@ -792,3 +833,4 @@ onValue(ref(db, "control/currentCity"), async (snapshot) => {
 
 document.getElementById("startButton").onclick = startGame;
 document.getElementById("submitAnswerButton").onclick = checkAnswer;
+document.getElementById("closeMessageButton").onclick = closeTeacherMessage;
