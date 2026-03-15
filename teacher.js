@@ -273,3 +273,16 @@ onValue(ref(db, "groups"), (snapshot) => {
   renderRanking(groups);
   renderGroups(groups);
 });
+
+document.getElementById("resetDatabaseButton").addEventListener("click", async () => {
+
+const confirmReset = confirm("Ben je zeker dat je alles wil resetten?");
+
+if(!confirmReset) return;
+
+await set(ref(db,"groups"), null);
+await set(ref(db,"meta/groupCounters"), null);
+
+alert("Database volledig gereset.");
+
+});
