@@ -109,17 +109,18 @@ function clearLocalState() {
 }
 
 function setActiveCityUI(cityKey) {
+  const titleEl = document.getElementById("appTitle");
+
   if (!cityKey || !cities[cityKey]) {
-    document.getElementById("activeCityLabel").innerText =
-      "Actieve stad: nog niet ingesteld";
-    document.getElementById("appTitle").innerText = "City Escape";
+    if (titleEl) {
+      titleEl.innerText = "City Escape";
+    }
     return;
   }
 
-  document.getElementById("activeCityLabel").innerText =
-    "Actieve stad: " + cities[cityKey].name;
-  document.getElementById("appTitle").innerText =
-    cities[cityKey].name + " Escape";
+  if (titleEl) {
+    titleEl.innerText = cities[cityKey].name + " Escape";
+  }
 }
 
 async function loadCheckpointsForCity(cityKey) {
