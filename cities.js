@@ -129,7 +129,7 @@ export const cities = {
       },
 
     thuis: {
-        name: "TestThuis",
+        name: "thuis",
         center: [50.89795, 3.26638],
         gather: [50.89795, 3.26638],
         defaultCheckpoints: [
