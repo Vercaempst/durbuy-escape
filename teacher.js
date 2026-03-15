@@ -72,7 +72,7 @@ function updateMarker(id, g) {
     "<br>" + g.groupName +
     "<br>Leden: " + (g.groupMembers || "-") +
     "<br>Score: " + (g.score || 0) +
-    "<br>" + (g.checkpoint || "-") +
+    "<br>Volgend checkpoint: " + (g.nextCheckpoint || "-") +
     "<br>" + modeText
   );
 }
@@ -124,21 +124,28 @@ function renderGroups(groups) {
         <h3>Groep ${group.groupNumber}: ${group.groupName}</h3>
 
         <p><strong>Leden:</strong> ${group.groupMembers || "-"}</p>
-
         <p><strong>Checkpoint:</strong> ${group.checkpoint || "-"}</p>
-
+        <p><strong>Volgend checkpoint:</strong> ${group.nextCheckpoint || "-"}</p>
+        <p><strong>Locatie:</strong> ${
+          typeof group.lat === "number" && typeof group.lng === "number"
+            ? group.lat.toFixed(5) + ", " + group.lng.toFixed(5)
+            : "-"
+        }</p>
         <p><strong>Score:</strong> ${group.score || 0}</p>
-
         <p><strong>Modus:</strong> ${modeText}</p>
 
         <p class="small-note">
           <strong>Laatst gezien:</strong> ${group.lastUpdated || "-"}
         </p>
 
+        <input type="text" id="message-${group.id}" placeholder="Typ bericht voor deze groep">
+
         <div class="group-actions">
           <button data-action="next" data-id="${group.id}">Volgend checkpoint</button>
           <button data-action="plus" data-id="${group.id}">+10 punten</button>
           <button data-action="minus" data-id="${group.id}">-10 punten</button>
+          <button data-action="message" data-id="${group.id}">Stuur bericht</button>
+          <button data-action="focus" data-id="${group.id}">Toon op kaart</button>
           <button data-action="reset" data-id="${group.id}">Reset groep</button>
         </div>
       `;
@@ -171,6 +178,28 @@ function renderGroups(groups) {
         });
       }
 
+      if (action === "message") {
+        const messageInput = document.getElementById("message-" + id);
+        const text = messageInput.value.trim();
+
+        if (!text) return;
+
+        await update(ref(db, "groups/" + id), {
+          commandMessageText: text,
+          commandMessageAt: Date.now()
+        });
+
+        messageInput.value = "";
+      }
+
+      if (action === "focus") {
+        const hit = groupsCache.find(g => g.id === id);
+        if (hit && markers[id]) {
+          markers[id].openPopup();
+          map.setView(markers[id].getLatLng(), 18);
+        }
+      }
+
       if (action === "reset") {
         await update(ref(db, "groups/" + id), {
           commandResetAt: Date.now()
@@ -180,37 +209,58 @@ function renderGroups(groups) {
   });
 }
 
+function renderSearchResult(hit) {
+  const container = document.getElementById("searchResult");
+
+  if (!hit) {
+    container.innerHTML = "<p>Geen leerling of groep gevonden.</p>";
+    return;
+  }
+
+  container.innerHTML = `
+    <div class="group-card">
+      <h3>Zoekresultaat: Groep ${hit.groupNumber}: ${hit.groupName}</h3>
+      <p><strong>Leden:</strong> ${hit.groupMembers || "-"}</p>
+      <p><strong>Checkpoint:</strong> ${hit.checkpoint || "-"}</p>
+      <p><strong>Volgend checkpoint:</strong> ${hit.nextCheckpoint || "-"}</p>
+      <p><strong>Locatie:</strong> ${
+        typeof hit.lat === "number" && typeof hit.lng === "number"
+          ? hit.lat.toFixed(5) + ", " + hit.lng.toFixed(5)
+          : "-"
+      }</p>
+      <p><strong>Score:</strong> ${hit.score || 0}</p>
+      <button id="focusSearchResultButton">Toon op kaart</button>
+    </div>
+  `;
+
+  document.getElementById("focusSearchResultButton").addEventListener("click", () => {
+    if (markers[hit.id]) {
+      markers[hit.id].openPopup();
+      map.setView(markers[hit.id].getLatLng(), 18);
+    }
+  });
+}
+
 function applySearch(query) {
   const q = query.toLowerCase().trim();
 
   if (!q) {
-    document.getElementById("searchResult").innerText = "";
+    document.getElementById("searchResult").innerHTML = "";
     return;
   }
 
   const hit = groupsCache.find(g =>
-    (g.groupMembers || "").toLowerCase().includes(q)
+    (g.groupMembers || "").toLowerCase().includes(q) ||
+    (g.groupName || "").toLowerCase().includes(q)
   );
 
-  if (hit) {
-    document.getElementById("searchResult").innerText =
-      "Leerling zit in groep " + hit.groupNumber + " (" + hit.groupName + ")";
-
-    if (markers[hit.id]) {
-      markers[hit.id].openPopup();
-      map.setView(markers[hit.id].getLatLng(), 17);
-    }
-  } else {
-    document.getElementById("searchResult").innerText =
-      "Geen leerling gevonden.";
-  }
+  renderSearchResult(hit);
 }
 
 populateCitySelector();
 
 document.getElementById("setCityButton").addEventListener("click", async () => {
   const cityKey = document.getElementById("citySelector").value;
-
   await set(ref(db, "control/currentCity"), cityKey);
 });
 
@@ -226,6 +276,9 @@ document.getElementById("sendGatherButton").addEventListener("click", async () =
     coords: gather.coords,
     radius: gather.radius
   });
+
+  document.getElementById("globalActionFeedback").innerText =
+    "Iedereen is naar het verzamelpunt gestuurd.";
 });
 
 document.getElementById("resumeGameButton").addEventListener("click", async () => {
@@ -235,6 +288,28 @@ document.getElementById("resumeGameButton").addEventListener("click", async () =
     type: "resume",
     at: Date.now()
   });
+
+  document.getElementById("globalActionFeedback").innerText =
+    "Het normale spel is hervat.";
+});
+
+document.getElementById("sendBroadcastButton").addEventListener("click", async () => {
+  if (!activeCityKey) return;
+
+  const input = document.getElementById("broadcastMessageInput");
+  const text = input.value.trim();
+
+  if (!text) return;
+
+  await set(ref(db, "control/globalCommands/" + activeCityKey + "/broadcast"), {
+    text: text,
+    at: Date.now()
+  });
+
+  document.getElementById("globalActionFeedback").innerText =
+    "Bericht naar alle groepen verstuurd.";
+
+  input.value = "";
 });
 
 document.getElementById("resetDatabaseButton").addEventListener("click", async () => {
@@ -283,6 +358,7 @@ onValue(ref(db, "groups"), (snapshot) => {
     renderRanking([]);
     renderGroups([]);
     clearMarkersNotInView(validIds);
+    document.getElementById("searchResult").innerHTML = "";
     return;
   }
 
