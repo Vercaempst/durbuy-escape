@@ -57,7 +57,6 @@ function clearMarkersNotInView(validIds) {
 }
 
 function updateMarker(id, g) {
-
   if (typeof g.lat !== "number" || typeof g.lng !== "number") return;
 
   if (!markers[id]) {
@@ -79,7 +78,6 @@ function updateMarker(id, g) {
 }
 
 function renderRanking(groups) {
-
   const container = document.getElementById("rankingContainer");
   container.innerHTML = "";
 
@@ -92,7 +90,6 @@ function renderRanking(groups) {
     .slice()
     .sort((a, b) => (b.score || 0) - (a.score || 0))
     .forEach((g, index) => {
-
       const row = document.createElement("div");
       row.className = "rank-item";
 
@@ -102,12 +99,10 @@ function renderRanking(groups) {
       `;
 
       container.appendChild(row);
-
     });
 }
 
 function renderGroups(groups) {
-
   const container = document.getElementById("groupsContainer");
   container.innerHTML = "";
 
@@ -120,7 +115,6 @@ function renderGroups(groups) {
     .slice()
     .sort((a, b) => (a.groupNumber || 999) - (b.groupNumber || 999))
     .forEach(group => {
-
       const div = document.createElement("div");
       div.className = "group-card";
 
@@ -142,79 +136,51 @@ function renderGroups(groups) {
         </p>
 
         <div class="group-actions">
-
-          <button data-action="next" data-id="${group.id}">
-          Volgend checkpoint
-          </button>
-
-          <button data-action="plus" data-id="${group.id}">
-          +10 punten
-          </button>
-
-          <button data-action="minus" data-id="${group.id}">
-          -10 punten
-          </button>
-
-          <button data-action="reset" data-id="${group.id}">
-          Reset groep
-          </button>
-
+          <button data-action="next" data-id="${group.id}">Volgend checkpoint</button>
+          <button data-action="plus" data-id="${group.id}">+10 punten</button>
+          <button data-action="minus" data-id="${group.id}">-10 punten</button>
+          <button data-action="reset" data-id="${group.id}">Reset groep</button>
         </div>
       `;
 
       container.appendChild(div);
-
     });
 
   container.querySelectorAll("button[data-action]").forEach(button => {
-
     button.addEventListener("click", async () => {
-
       const id = button.dataset.id;
       const action = button.dataset.action;
 
       if (action === "next") {
-
         await update(ref(db, "groups/" + id), {
           commandNextAt: Date.now()
         });
-
       }
 
       if (action === "plus") {
-
         await update(ref(db, "groups/" + id), {
           commandPointsValue: 10,
           commandPointsAt: Date.now()
         });
-
       }
 
       if (action === "minus") {
-
         await update(ref(db, "groups/" + id), {
           commandPointsValue: -10,
           commandPointsAt: Date.now()
         });
-
       }
 
       if (action === "reset") {
-
         await update(ref(db, "groups/" + id), {
           commandResetAt: Date.now()
         });
-
       }
-
     });
-
   });
-
 }
 
 function applySearch(query) {
-
   const q = query.toLowerCase().trim();
 
   if (!q) {
@@ -227,171 +193,111 @@ function applySearch(query) {
   );
 
   if (hit) {
-
     document.getElementById("searchResult").innerText =
-      "Leerling zit in groep " + hit.groupNumber +
-      " (" + hit.groupName + ")";
+      "Leerling zit in groep " + hit.groupNumber + " (" + hit.groupName + ")";
 
     if (markers[hit.id]) {
-
       markers[hit.id].openPopup();
-
-      map.setView(
-        markers[hit.id].getLatLng(),
-        17
-      );
-
+      map.setView(markers[hit.id].getLatLng(), 17);
     }
-
   } else {
-
     document.getElementById("searchResult").innerText =
       "Geen leerling gevonden.";
-
   }
-
 }
 
 populateCitySelector();
 
-document
-.getElementById("setCityButton")
-.addEventListener("click", async () => {
+document.getElementById("setCityButton").addEventListener("click", async () => {
+  const cityKey = document.getElementById("citySelector").value;
 
-  const cityKey =
-  document.getElementById("citySelector").value;
-
-  await set(
-    ref(db, "control/currentCity"),
-    cityKey
-  );
-
+  await set(ref(db, "control/currentCity"), cityKey);
 });
 
-document
-.getElementById("sendGatherButton")
-.addEventListener("click", async () => {
-
+document.getElementById("sendGatherButton").addEventListener("click", async () => {
   if (!activeCityKey) return;
 
-  const gather =
-  getGatherCheckpoint(activeCityKey);
+  const gather = getGatherCheckpoint(activeCityKey);
 
-  await set(
-    ref(db, "control/globalCommands/" + activeCityKey),
-    {
-      type: "gather",
-      at: Date.now(),
-      checkpointName: gather.name,
-      coords: gather.coords,
-      radius: gather.radius
-    }
-  );
-
+  await set(ref(db, "control/globalCommands/" + activeCityKey), {
+    type: "gather",
+    at: Date.now(),
+    checkpointName: gather.name,
+    coords: gather.coords,
+    radius: gather.radius
+  });
 });
 
-document
-.getElementById("resumeGameButton")
-.addEventListener("click", async () => {
-
+document.getElementById("resumeGameButton").addEventListener("click", async () => {
   if (!activeCityKey) return;
 
-  await set(
-    ref(db, "control/globalCommands/" + activeCityKey),
-    {
-      type: "resume",
-      at: Date.now()
-    }
-  );
-
+  await set(ref(db, "control/globalCommands/" + activeCityKey), {
+    type: "resume",
+    at: Date.now()
+  });
 });
 
-document
-.getElementById("resetDatabaseButton")
-.addEventListener("click", async () => {
-
-  const confirmReset =
-  confirm("Alle groepen verwijderen?");
+document.getElementById("resetDatabaseButton").addEventListener("click", async () => {
+  const confirmReset = confirm(
+    "Ben je zeker?\n\nAlle groepen worden verwijderd, groepnummers worden gereset en alle open leerlingtoestellen worden terug naar het startscherm gestuurd."
+  );
 
   if (!confirmReset) return;
 
-  await set(ref(db,"groups"), null);
-  await set(ref(db,"meta/groupCounters"), null);
+  const resetTime = Date.now();
+
+  await set(ref(db, "control/globalReset"), {
+    at: resetTime
+  });
+
+  await set(ref(db, "groups"), null);
+  await set(ref(db, "meta/groupCounters"), null);
 
   alert("Database volledig gereset.");
-
 });
 
-document
-.getElementById("searchInput")
-.addEventListener("input", (e) => {
+document.getElementById("searchInput").addEventListener("input", (e) => {
   applySearch(e.target.value);
 });
 
-onValue(
-ref(db,"control/currentCity"),
-(snapshot) => {
-
+onValue(ref(db, "control/currentCity"), (snapshot) => {
   const cityKey = snapshot.val();
 
   activeCityKey = cityKey;
 
-  if(cityKey && cities[cityKey]){
-
+  if (cityKey && cities[cityKey]) {
     document.getElementById("citySelector").value = cityKey;
-
     setMapCity(cityKey);
-
   } else {
-
     document.getElementById("currentCityInfo").innerText =
-    "Nog geen stad geactiveerd.";
-
+      "Nog geen stad geactiveerd.";
   }
-
 });
 
-onValue(
-ref(db,"groups"),
-(snapshot) => {
-
+onValue(ref(db, "groups"), (snapshot) => {
   const data = snapshot.val();
-
   const validIds = new Set();
 
-  if(!data || !activeCityKey){
-
+  if (!data || !activeCityKey) {
     groupsCache = [];
-
     renderRanking([]);
-
     renderGroups([]);
-
     clearMarkersNotInView(validIds);
-
     return;
-
   }
 
-  const groups =
-  Object.entries(data)
-  .map(([id,g]) => ({id,...g}))
-  .filter(g => g.cityKey === activeCityKey);
+  const groups = Object.entries(data)
+    .map(([id, g]) => ({ id, ...g }))
+    .filter(g => g.cityKey === activeCityKey);
 
   groups.forEach(g => {
-
     validIds.add(g.id);
-
-    updateMarker(g.id,g);
-
+    updateMarker(g.id, g);
   });
 
   clearMarkersNotInView(validIds);
 
   groupsCache = groups;
-
   renderRanking(groups);
-
   renderGroups(groups);
-
 });
