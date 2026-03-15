@@ -19,9 +19,9 @@
     </div>
 
     <div class="card">
-      <h2>Zoek leerling</h2>
-      <input id="searchInput" type="text" placeholder="Typ naam leerling">
-      <p id="searchResult"></p>
+      <h2>Zoek leerling of groep</h2>
+      <input id="searchInput" type="text" placeholder="Typ naam leerling of groepsnaam">
+      <div id="searchResult"></div>
     </div>
 
     <div class="card">
@@ -29,8 +29,12 @@
       <div class="button-grid">
         <button id="sendGatherButton">Stuur iedereen naar verzamelpunt</button>
         <button id="resumeGameButton">Hervat normaal spel</button>
-        <button id="resetDatabaseButton">Reset databases</button>
       </div>
+
+      <input id="broadcastMessageInput" type="text" placeholder="Typ een bericht voor alle groepen">
+      <button id="sendBroadcastButton">Stuur bericht naar alle groepen</button>
+
+      <button id="resetDatabaseButton">Reset databases</button>
       <p id="globalActionFeedback"></p>
     </div>
 
