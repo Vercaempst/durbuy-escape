@@ -139,7 +139,7 @@ export const cities = {
                 radius: 10,
                 question: "Waar sta je nu? oprit, keuken, achtertuin of voortuin?",
                 answers: ["oprit"],
-                pointsCorrect: 10,
+                pointsCorrect: 3,
                 pointsAfterMaxTries: 4
               },
               {
@@ -148,7 +148,7 @@ export const cities = {
                 radius: 10,
                 question: "Waar sta je nu? oprit, keuken, achtertuin of voortuin?",
                 answers: ["keuken"],
-                pointsCorrect: 10,
+                pointsCorrect: 3,
                 pointsAfterMaxTries: 4
               },
               {
@@ -157,7 +157,7 @@ export const cities = {
                 radius: 10,
                 question: "Waar sta je nu? oprit, keuken, achtertuin of voortuin?",
                 answers: ["achtertuin"],
-                pointsCorrect: 10,
+                pointsCorrect: 3,
                 pointsAfterMaxTries: 4
               },
               {
@@ -166,7 +166,7 @@ export const cities = {
                 radius: 10,
                 question: "Waar sta je nu? oprit, keuken, achtertuin of voortuin?",
                 answers: ["voortuin"],
-                pointsCorrect: 10,
+                pointsCorrect: 3,
                 pointsAfterMaxTries: 4
               },
         ]
