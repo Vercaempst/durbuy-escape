@@ -18,6 +18,7 @@ let map;
 let playerMarker;
 let checkpointMarker;
 let checkpointCircle;
+let routeLine;
 let questionOpen = false;
 
 let route = [];
@@ -48,25 +49,28 @@ let gameState = {
   lastProcessedHardResetAt: 0
 };
 
-const playerIcon = L.icon({
-  iconUrl: "https://cdn-icons-png.flaticon.com/512/149/149071.png",
-  iconSize: [36, 36],
-  iconAnchor: [18, 36],
-  popupAnchor: [0, -30]
-});
-
-const checkpointIcon = L.icon({
-  iconUrl: "https://cdn-icons-png.flaticon.com/512/684/684908.png",
-  iconSize: [34, 34],
-  iconAnchor: [17, 34],
+const playerIcon = L.divIcon({
+  className: "custom-emoji-icon",
+  html: `<div style="font-size:32px; line-height:32px;">🚶</div>`,
+  iconSize: [32, 32],
+  iconAnchor: [16, 32],
   popupAnchor: [0, -28]
 });
 
-const gatherIcon = L.icon({
-  iconUrl: "https://cdn-icons-png.flaticon.com/512/1828/1828884.png",
-  iconSize: [34, 34],
-  iconAnchor: [17, 34],
-  popupAnchor: [0, -28]
+const checkpointIcon = L.divIcon({
+  className: "custom-emoji-icon",
+  html: `<div style="font-size:30px; line-height:30px;">🚩</div>`,
+  iconSize: [30, 30],
+  iconAnchor: [15, 30],
+  popupAnchor: [0, -26]
+});
+
+const gatherIcon = L.divIcon({
+  className: "custom-emoji-icon",
+  html: `<div style="font-size:30px; line-height:30px;">⭐</div>`,
+  iconSize: [30, 30],
+  iconAnchor: [15, 30],
+  popupAnchor: [0, -26]
 });
 
 function saveLocalState() {
@@ -218,6 +222,26 @@ function loadCheckpoint() {
   saveLocalState();
 }
 
+function updateRouteLine(lat, lng) {
+  const cp = getCurrentCheckpoint();
+  if (!cp || !map) return;
+
+  if (routeLine) {
+    map.removeLayer(routeLine);
+  }
+
+  routeLine = L.polyline(
+    [
+      [lat, lng],
+      cp.coords
+    ],
+    {
+      weight: 4,
+      opacity: 0.8
+    }
+  ).addTo(map);
+}
+
 function updateLocation(lat, lng) {
   if (!playerMarker) {
     playerMarker = L.marker([lat, lng], { icon: playerIcon })
@@ -227,6 +251,7 @@ function updateLocation(lat, lng) {
     playerMarker.setLatLng([lat, lng]);
   }
 
+  updateRouteLine(lat, lng);
   updateNavigation(lat, lng);
   checkDistance(lat, lng);
   syncGroup(lat, lng);
@@ -675,16 +700,3 @@ onValue(ref(db, "control/currentCity"), async (snapshot) => {
 
 document.getElementById("startButton").onclick = startGame;
 document.getElementById("submitAnswerButton").onclick = checkAnswer;
-
-document.getElementById("routeButton").onclick = () => {
-  const cp = getCurrentCheckpoint();
-  if (!cp) return;
-
-  const url =
-    "https://www.google.com/maps/dir/?api=1&destination=" +
-    cp.coords[0] +
-    "," +
-    cp.coords[1];
-
-  window.open(url, "_blank");
-};
