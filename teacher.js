@@ -134,6 +134,19 @@ function clearDetailLayers() {
   detailLines = [];
 }
 
+function resetToAllGroupsView() {
+  selectedGroupId = null;
+  clearDetailLayers();
+  renderGroupDetail(null);
+
+  if (activeCityKey && cities[activeCityKey]) {
+    map.setView(cities[activeCityKey].center, 15);
+  }
+
+  lastGroupsRenderSignature = "";
+  renderGroups(groupsCache, true);
+}
+
 function updateMarker(id, g) {
   if (typeof g.lat !== "number" || typeof g.lng !== "number") return;
 
@@ -595,16 +608,6 @@ function renderSearchResult(hit) {
   });
 }
 
-function resetToAllGroupsView() {
-  selectedGroupId = null;
-  clearDetailLayers();
-  renderGroupDetail(null);
-
-  if (activeCityKey && cities[activeCityKey]) {
-    map.setView(cities[activeCityKey].center, 15);
-  }
-}
-
 function applySearch(query) {
   const q = query.toLowerCase().trim();
 
@@ -698,12 +701,12 @@ document.getElementById("resetDatabaseButton").addEventListener("click", async (
   alert("Database volledig gereset.");
 });
 
-document.getElementById("searchInput").addEventListener("input", (e) => {
-  applySearch(e.target.value);
+document.getElementById("showAllGroupsButton").addEventListener("click", () => {
+  resetToAllGroupsView();
 });
 
-document.getElementById("showAllGroupsButton").addEventListener("click", () => {
-  restToAllGroupsView();
+document.getElementById("searchInput").addEventListener("input", (e) => {
+  applySearch(e.target.value);
 });
 
 onValue(ref(db, "control/currentCity"), async (snapshot) => {
