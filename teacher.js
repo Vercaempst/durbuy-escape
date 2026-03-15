@@ -595,6 +595,16 @@ function renderSearchResult(hit) {
   });
 }
 
+function resetToAllGroupsView() {
+  selectedGroupId = null;
+  clearDetailLayers();
+  renderGroupDetail(null);
+
+  if (activeCityKey && cities[activeCityKey]) {
+    map.setView(cities[activeCityKey].center, 15);
+  }
+}
+
 function applySearch(query) {
   const q = query.toLowerCase().trim();
 
@@ -690,6 +700,10 @@ document.getElementById("resetDatabaseButton").addEventListener("click", async (
 
 document.getElementById("searchInput").addEventListener("input", (e) => {
   applySearch(e.target.value);
+});
+
+document.getElementById("showAllGroupsButton").addEventListener("click", () => {
+  restToAllGroupsView();
 });
 
 onValue(ref(db, "control/currentCity"), async (snapshot) => {
