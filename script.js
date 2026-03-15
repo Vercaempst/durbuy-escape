@@ -656,21 +656,6 @@ function listenGlobalCommands() {
   });
 }
 
-function listenBroadcastMessages() {
-  if (broadcastListenerStarted || !currentCityKey) return;
-  broadcastListenerStarted = true;
-
-  onValue(ref(db, "control/broadcasts/" + currentCityKey), (snapshot) => {
-    const data = snapshot.val();
-    if (!data || !data.at) return;
-    if (data.at <= gameState.lastProcessedBroadcastAt) return;
-
-    gameState.lastProcessedBroadcastAt = data.at;
-    showTeacherMessage(data.text || "Algemeen bericht");
-    saveLocalState();
-  });
-}
-
 function listenHardReset() {
   if (resetListenerStarted) return;
   resetListenerStarted = true;
