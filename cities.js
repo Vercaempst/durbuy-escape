@@ -231,10 +231,12 @@ export const cities = {
                 name: "Checkpoint 2",
                 coords: [50.89791, 3.26626],
                 radius: 10,
-                question: "Waar sta je nu? oprit, keuken, achtertuin of voortuin?",
-                answers: ["keuken"],
-                pointsCorrect: 3,
-                pointsAfterMaxTries: 4
+                taskType: "imagePuzzle",
+                question: "Los de puzzel op en herken deze plaats in het echt.",
+                imageUrl: "images/brug.jpg",
+                gridSize: 3,
+                pointsCorrect: 20,
+                pointsAfterMaxTries: 5
               },
               {
                 name: "Checkpoint 3",
