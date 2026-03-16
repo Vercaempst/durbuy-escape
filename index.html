@@ -52,12 +52,26 @@
     }
 
     #taskArea input[type="text"],
-    #taskArea select {
+    #taskArea select,
+    #taskArea input[type="file"] {
       width: 100%;
       padding: 10px;
       margin-top: 8px;
       margin-bottom: 8px;
       box-sizing: border-box;
+    }
+
+    #photoPreview {
+      display: block;
+      max-width: 100%;
+      max-height: 260px;
+      margin-top: 10px;
+      border-radius: 10px;
+    }
+
+    .upload-status {
+      font-size: 0.95rem;
+      margin-top: 8px;
     }
   </style>
 </head>
@@ -117,6 +131,12 @@
         <div id="taskImagePuzzleWrapper" class="hidden-task">
           <p>Los de puzzel op door twee stukjes na elkaar aan te klikken om ze te wisselen.</p>
           <div id="puzzleGrid" class="puzzle-grid"></div>
+        </div>
+
+        <div id="taskPhotoWrapper" class="hidden-task">
+          <input id="photoInput" type="file" accept="image/*" capture="environment">
+          <img id="photoPreview" class="hidden-task" alt="Voorbeeld van gekozen foto">
+          <p id="photoUploadStatus" class="upload-status"></p>
         </div>
       </div>
 
