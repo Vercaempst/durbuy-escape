@@ -187,19 +187,28 @@ export const cities = {
                 name: "Checkpoint 1",
                 coords: [50.951403, 3.124427],
                 radius: 10,
-                question: "Welk deel van de school neemt deze deur naar binnen?",
-                answers: ["zoom"],
+                taskType: "imagePuzzle",
+                question: "Los de puzzel op en herken deze plaats in het echt.",
+                imageUrl: "images/tant.jpeg",
+                gridSize: 3,
                 pointsCorrect: 10,
-                pointsAfterMaxTries: 4
+                pointsAfterMaxTries: 4,
               },
               {
                 name: "Checkpoint 2",
                 coords: [50.951864, 3.123595],
                 radius: 10,
-                question: "In welk lokaal sta je nu?",
-                answers: ["lk206"],
+                taskType: "matching",
+                question: "Koppel de plaats aan de juiste beschrijving.",
+                leftItems: ["Brug", "Fontein", "Kasteel"],
+                rightItems: ["Over de rivier", "Water in het midden", "Oud verdedigingsgebouw"],
+                correctPairs: {
+                  "Brug": "Over de rivier",
+                  "Fontein": "Water in het midden",
+                  "Kasteel": "Oud verdedigingsgebouw"
+                },
                 pointsCorrect: 10,
-                pointsAfterMaxTries: 4
+                pointsAfterMaxTries: 4,
               },
               {
                 name: "Checkpoint 3",
