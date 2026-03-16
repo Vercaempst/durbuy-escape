@@ -219,6 +219,17 @@ export const cities = {
                 pointsCorrect: 10,
                 pointsAfterMaxTries: 4
               },
+              {
+                name: "Checkpoint 4",
+                coords: [50.951806, 3.123919],
+                radius: 10,
+                taskType: "multipleChoice",
+                question: "Waarvoor dient dit gebouw?",
+                options: ["Kerk", "Stadhuis", "School", "Gevangenis"],
+                correctOption: 3,
+                pointsCorrect: 10,
+                pointsAfterMaxTries: 3
+              },
         ]
       },
 
