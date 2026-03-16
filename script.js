@@ -8,11 +8,14 @@ import {
   get,
   update,
   runTransaction,
-  onValue
+  onValue,
+  set
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
 
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
+
+const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxLpDiSFLhonEj4GMFa5EyaFOakoY5HhXQvmtmmwALLDGnyz7dJWsNn2TCY5ALv7VGe/exec";
 
 let map;
 let playerMarker;
@@ -40,6 +43,10 @@ let deviceHeading = null;
 
 let currentPuzzleOrder = [];
 let currentPuzzleSelectedIndex = null;
+
+let selectedPhotoFile = null;
+let uploadedPhotoUrl = "";
+let uploadedPhotoFileName = "";
 
 let gameState = {
   groupId: null,
@@ -183,6 +190,10 @@ function getNextCheckpointName() {
   return cp ? cp.name : "-";
 }
 
+function normalizeTaskType(cp) {
+  return cp.taskType || cp.type || "text";
+}
+
 function initMap() {
   const center = cities[currentCityKey].center;
 
@@ -205,10 +216,24 @@ function hideAllTaskWrappers() {
   document.getElementById("taskMultipleChoiceWrapper").classList.add("hidden-task");
   document.getElementById("taskMatchingWrapper").classList.add("hidden-task");
   document.getElementById("taskImagePuzzleWrapper").classList.add("hidden-task");
+  document.getElementById("taskPhotoWrapper").classList.add("hidden-task");
 }
 
-function normalizeTaskType(cp) {
-  return cp.taskType || cp.type || "text";
+function resetPhotoTaskUI() {
+  selectedPhotoFile = null;
+  uploadedPhotoUrl = "";
+  uploadedPhotoFileName = "";
+
+  const photoInput = document.getElementById("photoInput");
+  const photoPreview = document.getElementById("photoPreview");
+  const photoStatus = document.getElementById("photoUploadStatus");
+
+  if (photoInput) photoInput.value = "";
+  if (photoStatus) photoStatus.innerText = "";
+  if (photoPreview) {
+    photoPreview.src = "";
+    photoPreview.classList.add("hidden-task");
+  }
 }
 
 function shuffleArray(arr) {
@@ -271,8 +296,40 @@ function renderImagePuzzle(cp) {
   });
 }
 
+function attachPhotoListeners() {
+  const photoInput = document.getElementById("photoInput");
+  const photoPreview = document.getElementById("photoPreview");
+  const photoStatus = document.getElementById("photoUploadStatus");
+
+  if (!photoInput) return;
+
+  photoInput.onchange = () => {
+    const file = photoInput.files && photoInput.files[0] ? photoInput.files[0] : null;
+    selectedPhotoFile = file || null;
+    uploadedPhotoUrl = "";
+    uploadedPhotoFileName = "";
+
+    if (!file) {
+      photoPreview.src = "";
+      photoPreview.classList.add("hidden-task");
+      photoStatus.innerText = "";
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      photoPreview.src = e.target.result;
+      photoPreview.classList.remove("hidden-task");
+    };
+    reader.readAsDataURL(file);
+
+    photoStatus.innerText = "Foto gekozen. Klik op 'Controleer opdracht' om te uploaden.";
+  };
+}
+
 function renderTaskUI(cp) {
   hideAllTaskWrappers();
+  resetPhotoTaskUI();
 
   const taskType = normalizeTaskType(cp);
 
@@ -308,13 +365,11 @@ function renderTaskUI(cp) {
       const row = document.createElement("div");
       row.className = "matching-row";
 
-      const shuffledRight = [...(cp.rightItems || [])];
-
       row.innerHTML = `
         <div class="matching-left">${leftItem}</div>
         <select id="matching-${index}">
           <option value="">Kies...</option>
-          ${shuffledRight.map(item => `<option value="${item}">${item}</option>`).join("")}
+          ${(cp.rightItems || []).map(item => `<option value="${item}">${item}</option>`).join("")}
         </select>
       `;
 
@@ -325,6 +380,11 @@ function renderTaskUI(cp) {
   if (taskType === "imagePuzzle") {
     document.getElementById("taskImagePuzzleWrapper").classList.remove("hidden-task");
     renderImagePuzzle(cp);
+  }
+
+  if (taskType === "photo") {
+    document.getElementById("taskPhotoWrapper").classList.remove("hidden-task");
+    attachPhotoListeners();
   }
 }
 
@@ -361,6 +421,7 @@ function loadCheckpoint() {
   document.getElementById("modalAnswerInput").value = "";
   currentPuzzleOrder = [];
   currentPuzzleSelectedIndex = null;
+  resetPhotoTaskUI();
 
   if (!gameState.gatherMode && !gameState.finished) {
     renderTaskUI(cp);
@@ -645,7 +706,101 @@ function checkCurrentTask() {
     return arraysEqual(currentPuzzleOrder, solved);
   }
 
+  if (taskType === "photo") {
+    return !!uploadedPhotoUrl;
+  }
+
   return false;
+}
+
+async function uploadPhotoToDrive(file, group, checkpoint) {
+  const reader = new FileReader();
+  reader.readAsDataURL(file);
+
+  return new Promise((resolve, reject) => {
+    reader.onload = async () => {
+      try {
+        const base64 = reader.result.split(",")[1];
+
+        const response = await fetch(SCRIPT_URL, {
+          method: "POST",
+          body: JSON.stringify({
+            image: base64,
+            filename: checkpoint + ".jpg",
+            group: group
+          })
+        });
+
+        const text = await response.text();
+        let result = null;
+
+        try {
+          result = JSON.parse(text);
+        } catch (parseError) {
+          throw new Error("Geen geldige JSON ontvangen van Apps Script.");
+        }
+
+        if (!result || result.status !== "ok" || !result.url) {
+          throw new Error("Upload mislukt.");
+        }
+
+        resolve(result.url);
+      } catch (error) {
+        reject(error);
+      }
+    };
+
+    reader.onerror = () => reject(new Error("Bestand kon niet gelezen worden."));
+  });
+}
+
+async function uploadPhotoForCheckpoint(cp) {
+  const photoStatus = document.getElementById("photoUploadStatus");
+
+  if (!selectedPhotoFile) {
+    photoStatus.innerText = "Kies eerst een foto.";
+    return false;
+  }
+
+  try {
+    photoStatus.innerText = "Foto wordt geüpload...";
+
+    const photoUrl = await uploadPhotoToDrive(
+      selectedPhotoFile,
+      `Groep_${gameState.groupNumber}_${gameState.groupName}`,
+      cp.name
+    );
+
+    uploadedPhotoUrl = photoUrl;
+    uploadedPhotoFileName = cp.name + ".jpg";
+
+    const safeCheckpointName = (cp.name || "checkpoint")
+      .replace(/[^a-z0-9-_]+/gi, "_")
+      .toLowerCase();
+
+    await set(
+      ref(db, `photoSubmissions/${currentCityKey}/${gameState.groupId}/${safeCheckpointName}`),
+      {
+        cityKey: currentCityKey,
+        groupId: gameState.groupId,
+        groupNumber: gameState.groupNumber,
+        groupName: gameState.groupName,
+        groupMembers: gameState.groupMembers,
+        checkpointName: cp.name,
+        checkpointIndex: routeIndex,
+        photoUrl: photoUrl,
+        photoFileName: uploadedPhotoFileName,
+        submittedAt: new Date().toISOString()
+      }
+    );
+
+    photoStatus.innerText = "Foto succesvol geüpload.";
+    return true;
+  } catch (error) {
+    console.error(error);
+    photoStatus.innerText = "Upload mislukt. Controleer Apps Script of probeer opnieuw.";
+    return false;
+  }
 }
 
 function handleWrongAttempt(cp) {
@@ -663,9 +818,16 @@ function handleWrongAttempt(cp) {
   saveLocalState();
 }
 
-function checkAnswer() {
+async function checkAnswer() {
   const cp = getCurrentCheckpoint();
   if (!cp || gameState.finished) return;
+
+  const taskType = normalizeTaskType(cp);
+
+  if (taskType === "photo" && !uploadedPhotoUrl) {
+    const uploaded = await uploadPhotoForCheckpoint(cp);
+    if (!uploaded) return;
+  }
 
   const correct = checkCurrentTask();
 
@@ -682,6 +844,9 @@ function nextCheckpoint() {
   closeQuestion();
   gameState.currentTries = 0;
   routeIndex++;
+  currentPuzzleOrder = [];
+  currentPuzzleSelectedIndex = null;
+  resetPhotoTaskUI();
 
   if (routeIndex >= route.length) {
     finishGame();
