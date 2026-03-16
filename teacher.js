@@ -25,6 +25,7 @@ let selectedGroupId = null;
 let detailMarkers = [];
 let detailLines = [];
 let cityCheckpointsCache = [];
+let photoSubmissionsCache = {};
 
 const firstCityKey = Object.keys(cities)[0];
 const defaultCenter = cities[firstCityKey].center;
@@ -225,9 +226,7 @@ function restoreFocusAfterRender() {
   const len = input.value.length;
   try {
     input.setSelectionRange(len, len);
-  } catch (e) {
-    // niets doen
-  }
+  } catch (e) {}
 }
 
 function getGroupRouteSteps(group) {
@@ -263,6 +262,17 @@ function getGroupRouteSteps(group) {
   });
 }
 
+function getGroupPhotoSubmissions(group) {
+  if (!group) return [];
+
+  const byCity = photoSubmissionsCache[activeCityKey] || {};
+  const byGroup = byCity[group.id] || byCity[group.groupId] || {};
+
+  return Object.values(byGroup).sort((a, b) =>
+    (a.submittedAt || "").localeCompare(b.submittedAt || "")
+  );
+}
+
 async function renderGroupDetail(group) {
   const container = document.getElementById("groupDetailContainer");
 
@@ -275,6 +285,7 @@ async function renderGroupDetail(group) {
   await ensureCityCheckpointsLoaded();
 
   const steps = getGroupRouteSteps(group);
+  const photos = getGroupPhotoSubmissions(group);
 
   let modeText = "Normale route";
   if (group.gatherMode) modeText = "Verzamelmodus";
@@ -303,6 +314,24 @@ async function renderGroupDetail(group) {
     routeHtml += `</div>`;
   }
 
+  let photosHtml = `<div class="group-card"><p><strong>Foto-opdrachten</strong></p>`;
+
+  if (!photos.length) {
+    photosHtml += `<p>Nog geen foto's ingediend.</p>`;
+  } else {
+    photos.forEach(photo => {
+      photosHtml += `
+        <div style="margin-bottom:14px;">
+          <p>${photo.checkpointName || "-"}</p>
+          <img src="${photo.photoUrl}" alt="Ingediende foto" style="max-width:100%; border-radius:10px;">
+          <p style="font-size:0.9rem;">${photo.submittedAt || "-"}</p>
+        </div>
+      `;
+    });
+  }
+
+  photosHtml += `</div>`;
+
   container.innerHTML = `
     <div class="group-card">
       <h3>Groep ${group.groupNumber}: ${group.groupName}</h3>
@@ -319,6 +348,7 @@ async function renderGroupDetail(group) {
       <p><strong>Laatst gezien:</strong> ${group.lastUpdated || "-"}</p>
     </div>
     ${routeHtml}
+    ${photosHtml}
   `;
 
   drawGroupDetailOnMap(group, steps);
@@ -723,6 +753,15 @@ onValue(ref(db, "control/currentCity"), async (snapshot) => {
     document.getElementById("currentCityInfo").innerText =
       "Nog geen stad geactiveerd.";
   }
+
+  if (selectedGroupId) {
+    const selectedGroup = groupsCache.find(g => g.id === selectedGroupId);
+    renderGroupDetail(selectedGroup || null);
+  }
+});
+
+onValue(ref(db, "photoSubmissions"), (snapshot) => {
+  photoSubmissionsCache = snapshot.val() || {};
 
   if (selectedGroupId) {
     const selectedGroup = groupsCache.find(g => g.id === selectedGroupId);
