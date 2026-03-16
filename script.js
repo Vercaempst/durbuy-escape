@@ -38,6 +38,9 @@ let lastKnownLat = null;
 let lastKnownLng = null;
 let deviceHeading = null;
 
+let currentPuzzleOrder = [];
+let currentPuzzleSelectedIndex = null;
+
 let gameState = {
   groupId: null,
   groupNumber: null,
@@ -112,9 +115,7 @@ function setActiveCityUI(cityKey) {
   const titleEl = document.getElementById("appTitle");
 
   if (!cityKey || !cities[cityKey]) {
-    if (titleEl) {
-      titleEl.innerText = "City Escape";
-    }
+    if (titleEl) titleEl.innerText = "City Escape";
     return;
   }
 
@@ -199,6 +200,134 @@ function resetMapToCity() {
   map.setView(center, 16);
 }
 
+function hideAllTaskWrappers() {
+  document.getElementById("taskTextWrapper").classList.add("hidden-task");
+  document.getElementById("taskMultipleChoiceWrapper").classList.add("hidden-task");
+  document.getElementById("taskMatchingWrapper").classList.add("hidden-task");
+  document.getElementById("taskImagePuzzleWrapper").classList.add("hidden-task");
+}
+
+function normalizeTaskType(cp) {
+  return cp.taskType || cp.type || "text";
+}
+
+function shuffleArray(arr) {
+  const copy = [...arr];
+  for (let i = copy.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [copy[i], copy[j]] = [copy[j], copy[i]];
+  }
+  return copy;
+}
+
+function renderImagePuzzle(cp) {
+  const gridSize = cp.gridSize || 3;
+  const tileCount = gridSize * gridSize;
+  const grid = document.getElementById("puzzleGrid");
+
+  grid.innerHTML = "";
+  grid.style.gridTemplateColumns = `repeat(${gridSize}, 90px)`;
+
+  if (!Array.isArray(currentPuzzleOrder) || currentPuzzleOrder.length !== tileCount) {
+    currentPuzzleOrder = shuffleArray([...Array(tileCount).keys()]);
+
+    if (currentPuzzleOrder.every((value, index) => value === index)) {
+      currentPuzzleOrder = shuffleArray([...Array(tileCount).keys()]);
+    }
+  }
+
+  currentPuzzleOrder.forEach((tileNumber, index) => {
+    const row = Math.floor(tileNumber / gridSize);
+    const col = tileNumber % gridSize;
+
+    const tile = document.createElement("div");
+    tile.className = "puzzle-tile";
+    if (currentPuzzleSelectedIndex === index) {
+      tile.classList.add("selected");
+    }
+
+    tile.style.width = "90px";
+    tile.style.height = "90px";
+    tile.style.backgroundImage = `url('${cp.imageUrl}')`;
+    tile.style.backgroundSize = `${gridSize * 90}px ${gridSize * 90}px`;
+    tile.style.backgroundPosition = `${-col * 90}px ${-row * 90}px`;
+
+    tile.addEventListener("click", () => {
+      if (currentPuzzleSelectedIndex === null) {
+        currentPuzzleSelectedIndex = index;
+      } else if (currentPuzzleSelectedIndex === index) {
+        currentPuzzleSelectedIndex = null;
+      } else {
+        const a = currentPuzzleSelectedIndex;
+        const b = index;
+        [currentPuzzleOrder[a], currentPuzzleOrder[b]] = [currentPuzzleOrder[b], currentPuzzleOrder[a]];
+        currentPuzzleSelectedIndex = null;
+      }
+
+      renderImagePuzzle(cp);
+    });
+
+    grid.appendChild(tile);
+  });
+}
+
+function renderTaskUI(cp) {
+  hideAllTaskWrappers();
+
+  const taskType = normalizeTaskType(cp);
+
+  if (taskType === "text" || taskType === "riddle") {
+    document.getElementById("taskTextWrapper").classList.remove("hidden-task");
+    document.getElementById("modalAnswerInput").value = "";
+    document.getElementById("modalAnswerInput").placeholder =
+      taskType === "riddle" ? "Typ hier jullie oplossing" : "Typ hier jullie antwoord";
+  }
+
+  if (taskType === "multipleChoice") {
+    document.getElementById("taskMultipleChoiceWrapper").classList.remove("hidden-task");
+    const container = document.getElementById("multipleChoiceOptions");
+    container.innerHTML = "";
+
+    (cp.options || []).forEach((option, index) => {
+      const label = document.createElement("label");
+      label.className = "mc-option";
+      label.innerHTML = `
+        <input type="radio" name="mcOption" value="${index}">
+        ${option}
+      `;
+      container.appendChild(label);
+    });
+  }
+
+  if (taskType === "matching") {
+    document.getElementById("taskMatchingWrapper").classList.remove("hidden-task");
+    const container = document.getElementById("matchingContainer");
+    container.innerHTML = "";
+
+    (cp.leftItems || []).forEach((leftItem, index) => {
+      const row = document.createElement("div");
+      row.className = "matching-row";
+
+      const shuffledRight = [...(cp.rightItems || [])];
+
+      row.innerHTML = `
+        <div class="matching-left">${leftItem}</div>
+        <select id="matching-${index}">
+          <option value="">Kies...</option>
+          ${shuffledRight.map(item => `<option value="${item}">${item}</option>`).join("")}
+        </select>
+      `;
+
+      container.appendChild(row);
+    });
+  }
+
+  if (taskType === "imagePuzzle") {
+    document.getElementById("taskImagePuzzleWrapper").classList.remove("hidden-task");
+    renderImagePuzzle(cp);
+  }
+}
+
 function loadCheckpoint() {
   const cp = getCurrentCheckpoint();
   const markerIcon = getCurrentMarkerIcon();
@@ -214,12 +343,10 @@ function loadCheckpoint() {
 
   if (gameState.gatherMode) {
     document.getElementById("modeText").innerText = "Spelmodus: verzamelpunt";
-    document.getElementById("progressText").innerText =
-      "Iedereen naar het verzamelpunt";
+    document.getElementById("progressText").innerText = "Iedereen naar het verzamelpunt";
   } else if (gameState.finished) {
     document.getElementById("modeText").innerText = "Spelmodus: afgerond";
-    document.getElementById("progressText").innerText =
-      "Alle checkpoints afgerond";
+    document.getElementById("progressText").innerText = "Alle checkpoints afgerond";
   } else {
     document.getElementById("modeText").innerText = "Spelmodus: normaal";
     document.getElementById("progressText").innerText =
@@ -232,8 +359,14 @@ function loadCheckpoint() {
   document.getElementById("answerFeedback").innerText = "";
   document.getElementById("triesFeedback").innerText = "";
   document.getElementById("modalAnswerInput").value = "";
-  closeQuestion();
+  currentPuzzleOrder = [];
+  currentPuzzleSelectedIndex = null;
 
+  if (!gameState.gatherMode && !gameState.finished) {
+    renderTaskUI(cp);
+  }
+
+  closeQuestion();
   questionOpen = false;
   saveLocalState();
 
@@ -286,8 +419,7 @@ function checkDistance(lat, lng) {
   if (!cp) return;
 
   const dist = map.distance([lat, lng], cp.coords);
-  document.getElementById("distanceText").innerText =
-    "Afstand: " + Math.round(dist) + " m";
+  document.getElementById("distanceText").innerText = "Afstand: " + Math.round(dist) + " m";
 
   if (gameState.gatherMode) {
     if (dist < cp.radius) {
@@ -306,16 +438,13 @@ function checkDistance(lat, lng) {
         "Jullie zijn aangekomen op het verzamelpunt. Proficiat met jullie score.";
     } else {
       document.getElementById("status").innerText =
-        "Proficiat. Ga nu naar het verzamelpunt. Nog " +
-        Math.round(dist) +
-        " meter.";
+        "Proficiat. Ga nu naar het verzamelpunt. Nog " + Math.round(dist) + " meter.";
     }
     return;
   }
 
   if (dist < cp.radius) {
-    document.getElementById("status").innerText =
-      "Jullie zijn aangekomen bij " + cp.name + ".";
+    document.getElementById("status").innerText = "Jullie zijn aangekomen bij " + cp.name + ".";
     if (!questionOpen) {
       openQuestion();
     }
@@ -361,8 +490,7 @@ function updateNavigation(lat, lng) {
     rotation = targetBearing - deviceHeading;
   }
 
-  document.getElementById("arrow").style.transform =
-    "rotate(" + rotation + "deg)";
+  document.getElementById("arrow").style.transform = "rotate(" + rotation + "deg)";
 }
 
 function handleOrientation(event) {
@@ -413,6 +541,7 @@ function openQuestion() {
   questionOpen = true;
   document.getElementById("modalTitle").innerText = cp.name;
   document.getElementById("modalQuestion").innerText = cp.question;
+  renderTaskUI(cp);
   document.getElementById("questionModal").classList.remove("hidden");
 }
 
@@ -438,18 +567,16 @@ function finishGame() {
   const gather = getGatherCheckpoint(currentCityKey);
 
   document.getElementById("modeText").innerText = "Spelmodus: afgerond";
-  document.getElementById("progressText").innerText =
-    "Alle checkpoints afgerond";
-  document.getElementById("scoreText").innerText =
-    "Eindscore: " + gameState.score;
+  document.getElementById("progressText").innerText = "Alle checkpoints afgerond";
+  document.getElementById("scoreText").innerText = "Eindscore: " + gameState.score;
 
   alert(
     "Proficiat! 🎉\n\n" +
-      "Jullie hebben alle checkpoints voltooid.\n\n" +
-      "Jullie behaalden een score van: " +
-      gameState.score +
-      " punten.\n\n" +
-      "Ga nu naar het verzamelpunt."
+    "Jullie hebben alle checkpoints voltooid.\n\n" +
+    "Jullie behaalden een score van: " +
+    gameState.score +
+    " punten.\n\n" +
+    "Ga nu naar het verzamelpunt."
   );
 
   if (checkpointMarker) map.removeLayer(checkpointMarker);
@@ -478,34 +605,77 @@ function finishGame() {
   syncGroup();
 }
 
-function checkAnswer() {
+function arraysEqual(a, b) {
+  if (a.length !== b.length) return false;
+  return a.every((value, index) => value === b[index]);
+}
+
+function checkCurrentTask() {
   const cp = getCurrentCheckpoint();
-  if (!cp || gameState.finished) return;
+  if (!cp || gameState.finished) return false;
 
-  const input = document
-    .getElementById("modalAnswerInput")
-    .value.toLowerCase()
-    .trim();
+  const taskType = normalizeTaskType(cp);
 
-  if (cp.answers.includes(input)) {
-    gameState.score += Number(cp.pointsCorrect || 0);
-    nextCheckpoint();
-    return;
+  if (taskType === "text" || taskType === "riddle") {
+    const input = document.getElementById("modalAnswerInput").value.toLowerCase().trim();
+    return (cp.answers || []).map(a => a.toLowerCase().trim()).includes(input);
   }
 
+  if (taskType === "multipleChoice") {
+    const selected = document.querySelector('input[name="mcOption"]:checked');
+    if (!selected) return false;
+    return Number(selected.value) === Number(cp.correctOption);
+  }
+
+  if (taskType === "matching") {
+    const leftItems = cp.leftItems || [];
+    const correctPairs = cp.correctPairs || {};
+
+    return leftItems.every((leftItem, index) => {
+      const select = document.getElementById("matching-" + index);
+      if (!select) return false;
+      return select.value === correctPairs[leftItem];
+    });
+  }
+
+  if (taskType === "imagePuzzle") {
+    const gridSize = cp.gridSize || 3;
+    const tileCount = gridSize * gridSize;
+    const solved = [...Array(tileCount).keys()];
+    return arraysEqual(currentPuzzleOrder, solved);
+  }
+
+  return false;
+}
+
+function handleWrongAttempt(cp) {
   gameState.currentTries++;
 
   if (gameState.currentTries >= 3) {
     gameState.score += Number(cp.pointsAfterMaxTries || 0);
     nextCheckpoint();
   } else {
-    document.getElementById("answerFeedback").innerText =
-      "Niet juist, probeer opnieuw.";
+    document.getElementById("answerFeedback").innerText = "Niet juist, probeer opnieuw.";
     document.getElementById("triesFeedback").innerText =
       "Pogingen over: " + (3 - gameState.currentTries);
   }
 
   saveLocalState();
+}
+
+function checkAnswer() {
+  const cp = getCurrentCheckpoint();
+  if (!cp || gameState.finished) return;
+
+  const correct = checkCurrentTask();
+
+  if (correct) {
+    gameState.score += Number(cp.pointsCorrect || 0);
+    nextCheckpoint();
+    return;
+  }
+
+  handleWrongAttempt(cp);
 }
 
 function nextCheckpoint() {
@@ -528,8 +698,7 @@ function startGPS() {
       updateLocation(pos.coords.latitude, pos.coords.longitude);
     },
     (err) => {
-      document.getElementById("status").innerText =
-        "GPS kon niet worden opgehaald.";
+      document.getElementById("status").innerText = "GPS kon niet worden opgehaald.";
       console.error(err);
     },
     {
@@ -579,10 +748,7 @@ function listenTeacherCommands() {
     const data = snapshot.val();
     if (!data) return;
 
-    if (
-      data.commandNextAt &&
-      data.commandNextAt > gameState.lastProcessedNextAt
-    ) {
+    if (data.commandNextAt && data.commandNextAt > gameState.lastProcessedNextAt) {
       gameState.lastProcessedNextAt = data.commandNextAt;
       if (!gameState.gatherMode && !gameState.finished) {
         nextCheckpoint();
@@ -590,10 +756,7 @@ function listenTeacherCommands() {
       saveLocalState();
     }
 
-    if (
-      data.commandPointsAt &&
-      data.commandPointsAt > gameState.lastProcessedPointsAt
-    ) {
+    if (data.commandPointsAt && data.commandPointsAt > gameState.lastProcessedPointsAt) {
       gameState.lastProcessedPointsAt = data.commandPointsAt;
       gameState.score += Number(data.commandPointsValue || 0);
       document.getElementById("scoreText").innerText =
@@ -602,19 +765,13 @@ function listenTeacherCommands() {
       syncGroup();
     }
 
-    if (
-      data.commandMessageAt &&
-      data.commandMessageAt > gameState.lastProcessedMessageAt
-    ) {
+    if (data.commandMessageAt && data.commandMessageAt > gameState.lastProcessedMessageAt) {
       gameState.lastProcessedMessageAt = data.commandMessageAt;
       showTeacherMessage(data.commandMessageText || "Bericht van de leerkracht");
       saveLocalState();
     }
 
-    if (
-      data.commandResetAt &&
-      data.commandResetAt > gameState.lastProcessedResetAt
-    ) {
+    if (data.commandResetAt && data.commandResetAt > gameState.lastProcessedResetAt) {
       gameState.lastProcessedResetAt = data.commandResetAt;
       clearLocalState();
       location.reload();
@@ -653,6 +810,24 @@ function listenGlobalCommands() {
 
     saveLocalState();
     syncGroup();
+  });
+}
+
+function listenBroadcastMessages() {
+  if (broadcastListenerStarted || !currentCityKey) return;
+  broadcastListenerStarted = true;
+
+  onValue(ref(db, "control/broadcasts/" + currentCityKey), (snapshot) => {
+    const data = snapshot.val();
+    if (!data || !data.at) return;
+
+    if (!gameState.sessionStartedAt) return;
+    if (data.at <= gameState.sessionStartedAt) return;
+    if (data.at <= gameState.lastProcessedBroadcastAt) return;
+
+    gameState.lastProcessedBroadcastAt = data.at;
+    showTeacherMessage(data.text || "Algemeen bericht");
+    saveLocalState();
   });
 }
 
