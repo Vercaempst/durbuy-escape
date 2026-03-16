@@ -1,3 +1,88 @@
+/*
+VOORBEELDEN VAN CHECKPOINT TYPES
+
+1. TEXT
+{
+  name: "Checkpoint 1",
+  coords: [50.3528, 5.4560],
+  radius: 40,
+  taskType: "text",
+  question: "Hoe heet dit plein?",
+  answers: ["grote markt", "markt"],
+  pointsCorrect: 10,
+  pointsAfterMaxTries: 3
+}
+
+2. RIDDLE
+{
+  name: "Checkpoint 2",
+  coords: [50.3535, 5.4570],
+  radius: 40,
+  taskType: "riddle",
+  question: "Ik heb steden maar geen huizen. Ik heb water maar geen vissen. Wat ben ik?",
+  answers: ["kaart", "een kaart"],
+  pointsCorrect: 12,
+  pointsAfterMaxTries: 4
+}
+
+3. MULTIPLE CHOICE
+{
+  name: "Checkpoint 3",
+  coords: [50.3540, 5.4580],
+  radius: 40,
+  taskType: "multipleChoice",
+  question: "Waarvoor diende dit gebouw vroeger?",
+  options: ["Kerk", "Stadhuis", "School", "Gevangenis"],
+  correctOption: 1,
+  pointsCorrect: 10,
+  pointsAfterMaxTries: 3
+}
+
+4. MATCHING
+{
+  name: "Checkpoint 4",
+  coords: [50.3550, 5.4590],
+  radius: 40,
+  taskType: "matching",
+  question: "Koppel de plaats aan de juiste beschrijving.",
+  leftItems: ["Brug", "Fontein", "Kasteel"],
+  rightItems: ["Over de rivier", "Water in het midden", "Oud verdedigingsgebouw"],
+  correctPairs: {
+    "Brug": "Over de rivier",
+    "Fontein": "Water in het midden",
+    "Kasteel": "Oud verdedigingsgebouw"
+  },
+  pointsCorrect: 15,
+  pointsAfterMaxTries: 5
+}
+
+5. IMAGE PUZZLE
+{
+  name: "Checkpoint 5",
+  coords: [50.3560, 5.4600],
+  radius: 40,
+  taskType: "imagePuzzle",
+  question: "Los de puzzel op en herken deze plaats in het echt.",
+  imageUrl: "images/brug.jpg",
+  gridSize: 3,
+  pointsCorrect: 20,
+  pointsAfterMaxTries: 5
+}
+
+6. PHOTO
+Nog niet actief in de huidige versie, hiervoor is Firebase Storage nodig.
+
+{
+  name: "Checkpoint 6",
+  coords: [50.3570, 5.4610],
+  radius: 40,
+  taskType: "photo",
+  question: "Neem een groepsfoto met het monument op de achtergrond.",
+  pointsCorrect: 20,
+  pointsAfterMaxTries: 0
+}
+*/
+
 export const cities = {
     durbuy: {
       name: "Durbuy",
