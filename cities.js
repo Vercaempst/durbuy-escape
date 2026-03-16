@@ -295,6 +295,15 @@ export const cities = {
                 pointsCorrect: 3,
                 pointsAfterMaxTries: 4
               },
+              {
+                name: "Checkpoint 5",
+                coords: [50.89799, 3.26667],
+                radius: 10,
+                taskType: "photo",
+                question: "Neem een groepsfoto met het monument op de achtergrond.",
+                pointsCorrect: 20,
+                pointsAfterMaxTries: 0
+              },
         ]
       },
 
