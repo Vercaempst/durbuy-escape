@@ -233,7 +233,7 @@ export const cities = {
                 radius: 10,
                 taskType: "imagePuzzle",
                 question: "Los de puzzel op en herken deze plaats in het echt.",
-                imageUrl: "images/brug.jpg",
+                imageUrl: "images/check2thuis.jpg",
                 gridSize: 3,
                 pointsCorrect: 20,
                 pointsAfterMaxTries: 5
