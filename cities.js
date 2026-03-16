@@ -230,6 +230,25 @@ export const cities = {
                 pointsCorrect: 10,
                 pointsAfterMaxTries: 3
               },
+              {
+                name: "Checkpoint 5",
+                coords: [50.951281, 3.123558],
+                radius: 10,
+                taskType: "riddle",
+                question: "Ik heb steden maar geen huizen. Ik heb water maar geen vissen. Wat ben ik?",
+                answers: ["kaart", "een kaart"],
+                pointsCorrect: 12,
+                pointsAfterMaxTries: 4
+              },
+              {
+                name: "Checkpoint 6",
+                coords: [50.951221, 3.124171],
+                radius: 10,
+                question: "Op hoveel benen sta je nu?",
+                answers: ["2"],
+                pointsCorrect: 10,
+                pointsAfterMaxTries: 4
+              },
         ]
       },
 
