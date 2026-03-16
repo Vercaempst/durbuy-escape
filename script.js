@@ -8,8 +8,7 @@ import {
   get,
   update,
   runTransaction,
-  onValue,
-  set
+  onValue
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
 
 const app = initializeApp(firebaseConfig);
@@ -45,8 +44,7 @@ let currentPuzzleOrder = [];
 let currentPuzzleSelectedIndex = null;
 
 let selectedPhotoFile = null;
-let uploadedPhotoUrl = "";
-let uploadedPhotoFileName = "";
+let uploadedPhotoPending = false;
 
 let gameState = {
   groupId: null,
@@ -221,8 +219,7 @@ function hideAllTaskWrappers() {
 
 function resetPhotoTaskUI() {
   selectedPhotoFile = null;
-  uploadedPhotoUrl = "";
-  uploadedPhotoFileName = "";
+  uploadedPhotoPending = false;
 
   const photoInput = document.getElementById("photoInput");
   const photoPreview = document.getElementById("photoPreview");
@@ -306,8 +303,7 @@ function attachPhotoListeners() {
   photoInput.onchange = () => {
     const file = photoInput.files && photoInput.files[0] ? photoInput.files[0] : null;
     selectedPhotoFile = file || null;
-    uploadedPhotoUrl = "";
-    uploadedPhotoFileName = "";
+    uploadedPhotoPending = false;
 
     if (!file) {
       photoPreview.src = "";
@@ -707,51 +703,10 @@ function checkCurrentTask() {
   }
 
   if (taskType === "photo") {
-    return !!uploadedPhotoUrl;
+    return uploadedPhotoPending;
   }
 
   return false;
-}
-
-async function uploadPhotoToDrive(file, group, checkpoint) {
-  const reader = new FileReader();
-  reader.readAsDataURL(file);
-
-  return new Promise((resolve, reject) => {
-    reader.onload = async () => {
-      try {
-        const base64 = reader.result.split(",")[1];
-
-        const response = await fetch(SCRIPT_URL, {
-          method: "POST",
-          body: JSON.stringify({
-            image: base64,
-            filename: checkpoint + ".jpg",
-            group: group
-          })
-        });
-
-        const text = await response.text();
-        let result = null;
-
-        try {
-          result = JSON.parse(text);
-        } catch (parseError) {
-          throw new Error("Geen geldige JSON ontvangen van Apps Script.");
-        }
-
-        if (!result || result.status !== "ok" || !result.url) {
-          throw new Error("Upload mislukt.");
-        }
-
-        resolve(result.url);
-      } catch (error) {
-        reject(error);
-      }
-    };
-
-    reader.onerror = () => reject(new Error("Bestand kon niet gelezen worden."));
-  });
 }
 
 async function uploadPhotoForCheckpoint(cp) {
@@ -765,22 +720,34 @@ async function uploadPhotoForCheckpoint(cp) {
   try {
     photoStatus.innerText = "Foto wordt geüpload...";
 
-    const photoUrl = await uploadPhotoToDrive(
-      selectedPhotoFile,
-      `Groep_${gameState.groupNumber}_${gameState.groupName}`,
-      cp.name
-    );
+    const reader = new FileReader();
 
-    uploadedPhotoUrl = photoUrl;
-    uploadedPhotoFileName = cp.name + ".jpg";
+    const base64 = await new Promise((resolve, reject) => {
+      reader.onload = () => {
+        try {
+          resolve(reader.result.split(",")[1]);
+        } catch (error) {
+          reject(error);
+        }
+      };
+      reader.onerror = () => reject(new Error("Bestand kon niet gelezen worden."));
+      reader.readAsDataURL(selectedPhotoFile);
+    });
 
     const safeCheckpointName = (cp.name || "checkpoint")
       .replace(/[^a-z0-9-_]+/gi, "_")
       .toLowerCase();
 
-    await set(
-      ref(db, `photoSubmissions/${currentCityKey}/${gameState.groupId}/${safeCheckpointName}`),
-      {
+    await fetch(SCRIPT_URL, {
+      method: "POST",
+      mode: "no-cors",
+      headers: {
+        "Content-Type": "text/plain;charset=utf-8"
+      },
+      body: JSON.stringify({
+        image: base64,
+        filename: safeCheckpointName + ".jpg",
+        groupFolderName: `Groep_${gameState.groupNumber}_${gameState.groupName}`,
         cityKey: currentCityKey,
         groupId: gameState.groupId,
         groupNumber: gameState.groupNumber,
@@ -788,17 +755,17 @@ async function uploadPhotoForCheckpoint(cp) {
         groupMembers: gameState.groupMembers,
         checkpointName: cp.name,
         checkpointIndex: routeIndex,
-        photoUrl: photoUrl,
-        photoFileName: uploadedPhotoFileName,
-        submittedAt: new Date().toISOString()
-      }
-    );
+        safeCheckpointName: safeCheckpointName
+      })
+    });
 
-    photoStatus.innerText = "Foto succesvol geüpload.";
+    uploadedPhotoPending = true;
+    photoStatus.innerText = "Foto verzonden. Even wachten op verwerking...";
+
     return true;
   } catch (error) {
     console.error(error);
-    photoStatus.innerText = "Upload mislukt. Controleer Apps Script of probeer opnieuw.";
+    photoStatus.innerText = "Upload mislukt. Probeer opnieuw.";
     return false;
   }
 }
@@ -824,7 +791,7 @@ async function checkAnswer() {
 
   const taskType = normalizeTaskType(cp);
 
-  if (taskType === "photo" && !uploadedPhotoUrl) {
+  if (taskType === "photo" && !uploadedPhotoPending) {
     const uploaded = await uploadPhotoForCheckpoint(cp);
     if (!uploaded) return;
   }
