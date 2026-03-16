@@ -14,7 +14,7 @@ import {
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 
-const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxLpDiSFLhonEj4GMFa5EyaFOakoY5HhXQvmtmmwALLDGnyz7dJWsNn2TCY5ALv7VGe/exec";
+const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyQhp0iFNmTNJHOMhBCJaUpYnKFiGQPKHEsRuzkwyeg5tCrlKN_XbhR1jy2adznmcmY/exec";
 
 let map;
 let playerMarker;
