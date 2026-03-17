@@ -323,7 +323,11 @@ async function renderGroupDetail(group) {
       photosHtml += `
         <div style="margin-bottom:14px;">
           <p>${photo.checkpointName || "-"}</p>
-          <img src="${photo.photoUrl}" alt="Ingediende foto" style="max-width:100%; border-radius:10px;">
+          <p>
+            <a href="${photo.driveFileUrl}" target="_blank" rel="noopener noreferrer">
+              Open foto in Drive
+            </a>
+          </p>
           <p style="font-size:0.9rem;">${photo.submittedAt || "-"}</p>
         </div>
       `;
@@ -724,6 +728,8 @@ document.getElementById("resetDatabaseButton").addEventListener("click", async (
 
   await set(ref(db, "groups"), null);
   await set(ref(db, "meta/groupCounters"), null);
+  await set(ref(db, "uploadQueue"), null);
+  await set(ref(db, "photoSubmissions"), null);
 
   selectedGroupId = null;
   clearDetailLayers();
