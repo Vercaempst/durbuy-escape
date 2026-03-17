@@ -738,34 +738,53 @@ async function uploadPhotoForCheckpoint(cp) {
       .replace(/[^a-z0-9-_]+/gi, "_")
       .toLowerCase();
 
-    await fetch(SCRIPT_URL, {
+    const payload = {
+      image: base64,
+      filename: safeCheckpointName + ".jpg",
+      groupFolderName: `Groep_${gameState.groupNumber}_${gameState.groupName}`,
+      cityKey: currentCityKey,
+      groupId: gameState.groupId,
+      groupNumber: gameState.groupNumber,
+      groupName: gameState.groupName,
+      groupMembers: gameState.groupMembers,
+      checkpointName: cp.name,
+      checkpointIndex: routeIndex,
+      safeCheckpointName: safeCheckpointName
+    };
+
+    console.log("UPLOAD PAYLOAD:", payload);
+    console.log("SCRIPT_URL:", SCRIPT_URL);
+
+    const response = await fetch(SCRIPT_URL, {
       method: "POST",
-      mode: "no-cors",
       headers: {
         "Content-Type": "text/plain;charset=utf-8"
       },
-      body: JSON.stringify({
-        image: base64,
-        filename: safeCheckpointName + ".jpg",
-        groupFolderName: `Groep_${gameState.groupNumber}_${gameState.groupName}`,
-        cityKey: currentCityKey,
-        groupId: gameState.groupId,
-        groupNumber: gameState.groupNumber,
-        groupName: gameState.groupName,
-        groupMembers: gameState.groupMembers,
-        checkpointName: cp.name,
-        checkpointIndex: routeIndex,
-        safeCheckpointName: safeCheckpointName
-      })
+      body: JSON.stringify(payload)
     });
 
-    uploadedPhotoPending = true;
-    photoStatus.innerText = "Foto verzonden. Even wachten op verwerking...";
+    const responseText = await response.text();
+    console.log("Apps Script raw response:", responseText);
 
+    let result;
+    try {
+      result = JSON.parse(responseText);
+    } catch (e) {
+      throw new Error("Ongeldige response van Apps Script: " + responseText);
+    }
+
+    console.log("Apps Script parsed response:", result);
+
+    if (result.status !== "ok") {
+      throw new Error(result.message || "Onbekende fout bij upload");
+    }
+
+    uploadedPhotoPending = true;
+    photoStatus.innerText = "Foto succesvol geüpload.";
     return true;
   } catch (error) {
-    console.error(error);
-    photoStatus.innerText = "Upload mislukt. Probeer opnieuw.";
+    console.error("Foto-upload mislukt:", error);
+    photoStatus.innerText = "Upload mislukt: " + error.message;
     return false;
   }
 }
