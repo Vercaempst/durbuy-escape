@@ -14,8 +14,6 @@ import {
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 
-const SCRIPT_URL = "https://script.google.com/macros/s/AKfycby9wR0HW4d-KRsyFrqm7qStvbpljVv8Y01Hy0pDjpOyMdatJTomwLRziHvE7IJtcZE8/exec";
-
 let map;
 let playerMarker;
 let checkpointMarker;
@@ -319,7 +317,7 @@ function attachPhotoListeners() {
     };
     reader.readAsDataURL(file);
 
-    photoStatus.innerText = "Foto gekozen. Klik op 'Controleer opdracht' om te uploaden.";
+    photoStatus.innerText = "Foto gekozen. Klik op 'Controleer opdracht' om te verzenden.";
   };
 }
 
@@ -718,7 +716,7 @@ async function uploadPhotoForCheckpoint(cp) {
   }
 
   try {
-    photoStatus.innerText = "Foto wordt geüpload...";
+    photoStatus.innerText = "Foto wordt doorgestuurd...";
 
     const reader = new FileReader();
 
@@ -738,10 +736,7 @@ async function uploadPhotoForCheckpoint(cp) {
       .replace(/[^a-z0-9-_]+/gi, "_")
       .toLowerCase();
 
-    const payload = {
-      image: base64,
-      filename: safeCheckpointName + ".jpg",
-      groupFolderName: `Groep_${gameState.groupNumber}_${gameState.groupName}`,
+    const queueData = {
       cityKey: currentCityKey,
       groupId: gameState.groupId,
       groupNumber: gameState.groupNumber,
@@ -749,38 +744,27 @@ async function uploadPhotoForCheckpoint(cp) {
       groupMembers: gameState.groupMembers,
       checkpointName: cp.name,
       checkpointIndex: routeIndex,
-      safeCheckpointName: safeCheckpointName
+      safeCheckpointName: safeCheckpointName,
+      filename: safeCheckpointName + ".jpg",
+      groupFolderName: `Groep_${gameState.groupNumber}_${gameState.groupName}`,
+      imageBase64: base64,
+      createdAt: new Date().toISOString(),
+      processed: false
     };
 
-    console.log("UPLOAD PAYLOAD:", payload);
-    console.log("SCRIPT_URL:", SCRIPT_URL);
-
-    const response = await fetch(SCRIPT_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "text/plain;charset=utf-8"
-      },
-      body: JSON.stringify(payload)
-    });
-
-    const responseText = await response.text();
-    console.log("Apps Script raw response:", responseText);
-
-    let result;
-    try {
-      result = JSON.parse(responseText);
-    } catch (e) {
-      throw new Error("Ongeldige response van Apps Script: " + responseText);
-    }
-
-    console.log("Apps Script parsed response:", result);
-
-    if (result.status !== "ok") {
-      throw new Error(result.message || "Onbekende fout bij upload");
-    }
+    await update(
+      ref(
+        db,
+        `uploadQueue/${currentCityKey}/${gameState.groupId}/${safeCheckpointName}`
+      ),
+      queueData
+    );
 
     uploadedPhotoPending = true;
-    photoStatus.innerText = "Foto succesvol geüpload.";
+    photoStatus.innerText = "Foto doorgestuurd. De verwerking kan even duren.";
+
+    console.log("Foto in wachtrij gezet:", queueData);
+
     return true;
   } catch (error) {
     console.error("Foto-upload mislukt:", error);
