@@ -52,6 +52,7 @@ let currentArrowRotation = 0;
 let lastLocationUpdateTime = 0;
 let lastProcessedLat = null;
 let lastProcessedLng = null;
+let preferMovementHeading = true;
 
 const GPS_MIN_DISTANCE_METERS = 4;
 const GPS_MIN_UPDATE_MS = 1200;
@@ -657,10 +658,20 @@ function updateNavigation(lat, lng) {
 
   const targetBearing = getBearing(lat, lng, cp.coords[0], cp.coords[1]);
 
-  let desiredRotation = targetBearing;
+  let referenceHeading = null;
 
-  if (deviceHeading !== null) {
-    desiredRotation = targetBearing - deviceHeading;
+  if (preferMovementHeading && smoothedHeading !== null) {
+    referenceHeading = smoothedHeading;
+  } else if (deviceHeading !== null) {
+    referenceHeading = deviceHeading;
+  }
+
+  let desiredRotation;
+
+  if (referenceHeading !== null) {
+    desiredRotation = targetBearing - referenceHeading;
+  } else {
+    desiredRotation = targetBearing;
   }
 
   desiredRotation = normalizeAngle(desiredRotation);
@@ -673,7 +684,6 @@ function updateNavigation(lat, lng) {
     arrow.style.transform = "rotate(" + currentArrowRotation + "deg)";
   }
 }
-
 function handleOrientation(event) {
   let heading = null;
 
@@ -1008,7 +1018,7 @@ function startGPS() {
 
       updateLocation(filteredLat, filteredLng);
 
-      if (typeof speed === "number" && speed > 1 && prevLat !== null && prevLng !== null) {
+      if (prevLat !== null && prevLng !== null) {
         const headingFromMovement = calculateMovementHeading(
           prevLat,
           prevLng,
@@ -1017,9 +1027,10 @@ function startGPS() {
         );
 
         if (headingFromMovement !== null) {
-          updateDeviceHeading(headingFromMovement);
+          smoothedHeading = headingFromMovement;
+          updateNavigation(filteredLat, filteredLng);
         }
-      }
+    }
     },
     (err) => {
       const text = document.getElementById("gpsStatusText");
