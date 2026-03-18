@@ -244,10 +244,10 @@ export const cities = {
                 name: "Checkpoint 6",
                 coords: [50.951221, 3.124171],
                 radius: 10,
-                question: "Op hoveel benen sta je nu?",
-                answers: ["2"],
-                pointsCorrect: 10,
-                pointsAfterMaxTries: 4
+                taskType: "photo",
+                question: "Neem een selfie met de school op de achtergrond.",
+                pointsCorrect: 20,
+                pointsAfterMaxTries: 0
               },
         ]
       },
