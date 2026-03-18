@@ -1,4 +1,4 @@
-import { cities, getGatherCheckpoint } from "./cities.js";
+import { cities as fallbackCities, getGatherCheckpoint as getFallbackGatherCheckpoint } from "./cities.js";
 import { firebaseConfig } from "./firebase-config.js";
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
@@ -13,6 +13,8 @@ import {
 
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
+
+let citiesCache = {};
 
 let map;
 let playerMarker;
@@ -103,6 +105,92 @@ const gatherIcon = L.divIcon({
   popupAnchor: [0, -26]
 });
 
+function getCityRecord(cityKey) {
+  const firebaseCity = citiesCache[cityKey];
+  const fallbackCity = fallbackCities[cityKey];
+
+  if (firebaseCity) {
+    const center = Array.isArray(firebaseCity.center)
+      ? firebaseCity.center
+      : fallbackCity?.center || [50.85, 4.35];
+
+    let gather;
+    if (Array.isArray(firebaseCity.gather)) {
+      gather = {
+        name: "Verzamelpunt",
+        coords: firebaseCity.gather,
+        radius: 40
+      };
+    } else if (firebaseCity.gather?.coords) {
+      gather = {
+        name: firebaseCity.gather.name || "Verzamelpunt",
+        coords: firebaseCity.gather.coords,
+        radius: Number(firebaseCity.gather.radius || 40)
+      };
+    } else if (fallbackCity) {
+      gather = {
+        name: "Verzamelpunt",
+        coords: Array.isArray(fallbackCity.gather) ? fallbackCity.gather : fallbackCity.center,
+        radius: 40
+      };
+    } else {
+      gather = {
+        name: "Verzamelpunt",
+        coords: center,
+        radius: 40
+      };
+    }
+
+    return {
+      name: firebaseCity.name || fallbackCity?.name || cityKey,
+      center,
+      gather,
+      defaultCheckpoints: fallbackCity?.defaultCheckpoints || []
+    };
+  }
+
+  if (fallbackCity) {
+    return {
+      name: fallbackCity.name || cityKey,
+      center: fallbackCity.center || [50.85, 4.35],
+      gather: {
+        name: "Verzamelpunt",
+        coords: Array.isArray(fallbackCity.gather) ? fallbackCity.gather : fallbackCity.center,
+        radius: 40
+      },
+      defaultCheckpoints: fallbackCity.defaultCheckpoints || []
+    };
+  }
+
+  return {
+    name: cityKey || "City Escape",
+    center: [50.85, 4.35],
+    gather: {
+      name: "Verzamelpunt",
+      coords: [50.85, 4.35],
+      radius: 40
+    },
+    defaultCheckpoints: []
+  };
+}
+
+function getGatherCheckpoint(cityKey) {
+  if (citiesCache[cityKey]?.gather?.coords) {
+    const city = getCityRecord(cityKey);
+    return {
+      name: city.gather.name || "Verzamelpunt",
+      coords: city.gather.coords,
+      radius: city.gather.radius || 40,
+      question: "",
+      answers: [],
+      pointsCorrect: 0,
+      pointsAfterMaxTries: 0
+    };
+  }
+
+  return getFallbackGatherCheckpoint(cityKey);
+}
+
 function saveLocalState() {
   localStorage.setItem(
     "cityEscapeState",
@@ -131,14 +219,15 @@ function clearLocalState() {
 
 function setActiveCityUI(cityKey) {
   const titleEl = document.getElementById("appTitle");
+  const city = cityKey ? getCityRecord(cityKey) : null;
 
-  if (!cityKey || !cities[cityKey]) {
+  if (!cityKey || !city) {
     if (titleEl) titleEl.innerText = "City Escape";
     return;
   }
 
   if (titleEl) {
-    titleEl.innerText = cities[cityKey].name + " Escape";
+    titleEl.innerText = city.name + " Escape";
   }
 }
 
@@ -152,7 +241,7 @@ async function loadCheckpointsForCity(cityKey) {
     }
   }
 
-  return cities[cityKey].defaultCheckpoints || [];
+  return getCityRecord(cityKey).defaultCheckpoints || [];
 }
 
 function generateGroupId() {
@@ -206,7 +295,7 @@ function normalizeTaskType(cp) {
 }
 
 function initMap() {
-  const center = cities[currentCityKey].center;
+  const center = getCityRecord(currentCityKey).center;
 
   map = L.map("map").setView(center, 16);
 
@@ -218,7 +307,7 @@ function initMap() {
 }
 
 function resetMapToCity() {
-  const center = cities[currentCityKey].center;
+  const center = getCityRecord(currentCityKey).center;
   map.setView(center, 16);
 }
 
@@ -237,19 +326,12 @@ function resetPhotoTaskUI() {
   const photoInput = document.getElementById("photoInput");
   const photoPreview = document.getElementById("photoPreview");
   const photoStatus = document.getElementById("photoUploadStatus");
-  const uploadBtn = document.getElementById("uploadBtn");
 
   if (photoInput) photoInput.value = "";
   if (photoStatus) photoStatus.innerText = "";
   if (photoPreview) {
     photoPreview.src = "";
     photoPreview.classList.add("hidden-task");
-  }
-
-  if (uploadBtn) {
-    uploadBtn.innerText = "📸 Neem of upload groepsfoto";
-    uploadBtn.classList.remove("selected");
-    uploadBtn.classList.remove("error");
   }
 }
 
@@ -317,7 +399,6 @@ function attachPhotoListeners() {
   const photoInput = document.getElementById("photoInput");
   const photoPreview = document.getElementById("photoPreview");
   const photoStatus = document.getElementById("photoUploadStatus");
-  const uploadBtn = document.getElementById("uploadBtn");
 
   if (!photoInput) return;
 
@@ -330,12 +411,6 @@ function attachPhotoListeners() {
       photoPreview.src = "";
       photoPreview.classList.add("hidden-task");
       photoStatus.innerText = "";
-
-      if (uploadBtn) {
-        uploadBtn.innerText = "📸 Neem of upload groepsfoto";
-        uploadBtn.classList.remove("selected");
-        uploadBtn.classList.remove("error");
-      }
       return;
     }
 
@@ -347,12 +422,6 @@ function attachPhotoListeners() {
     reader.readAsDataURL(file);
 
     photoStatus.innerText = "Foto gekozen. Klik op 'Controleer opdracht' om te verzenden.";
-
-    if (uploadBtn) {
-      uploadBtn.innerText = "✔️ Foto gekozen";
-      uploadBtn.classList.add("selected");
-      uploadBtn.classList.remove("error");
-    }
   };
 }
 
@@ -509,9 +578,7 @@ function checkDistance(lat, lng) {
   if (!cp) return;
 
   const dist = map.distance([lat, lng], cp.coords);
-  const roundedDist = dist < 20 ? Math.round(dist) : Math.round(dist / 5) * 5;
-
-  document.getElementById("distanceText").innerText = "Afstand: " + roundedDist + " m";
+  document.getElementById("distanceText").innerText = "Afstand: " + Math.round(dist) + " m";
 
   if (gameState.gatherMode) {
     if (dist < cp.radius) {
@@ -519,7 +586,7 @@ function checkDistance(lat, lng) {
         "Jullie zijn aangekomen op het verzamelpunt. Wacht op verdere instructies.";
     } else {
       document.getElementById("status").innerText =
-        "Ga naar het verzamelpunt. Nog " + roundedDist + " meter.";
+        "Ga naar het verzamelpunt. Nog " + Math.round(dist) + " meter.";
     }
     return;
   }
@@ -530,7 +597,7 @@ function checkDistance(lat, lng) {
         "Jullie zijn aangekomen op het verzamelpunt. Proficiat met jullie score.";
     } else {
       document.getElementById("status").innerText =
-        "Proficiat. Ga nu naar het verzamelpunt. Nog " + roundedDist + " meter.";
+        "Proficiat. Ga nu naar het verzamelpunt. Nog " + Math.round(dist) + " meter.";
     }
     return;
   }
@@ -542,7 +609,7 @@ function checkDistance(lat, lng) {
     }
   } else {
     document.getElementById("status").innerText =
-      "Nog " + roundedDist + " meter tot " + cp.name + ".";
+      "Nog " + Math.round(dist) + " meter tot " + cp.name + ".";
   }
 }
 
@@ -570,86 +637,13 @@ function getBearing(lat1, lng1, lat2, lng2) {
   return bearing;
 }
 
-function getDistanceMeters(lat1, lng1, lat2, lng2) {
-  const R = 6371000;
-  const dLat = toRadians(lat2 - lat1);
-  const dLng = toRadians(lng2 - lng1);
-
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(toRadians(lat1)) *
-      Math.cos(toRadians(lat2)) *
-      Math.sin(dLng / 2) *
-      Math.sin(dLng / 2);
-
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c;
-}
-
-function calculateMovementHeading(lat1, lng1, lat2, lng2) {
-  if (
-    lat1 === null ||
-    lng1 === null ||
-    lat2 === null ||
-    lng2 === null
-  ) {
-    return null;
-  }
-
-  const dist = getDistanceMeters(lat1, lng1, lat2, lng2);
-  if (dist < 3) return null;
-
-  return getBearing(lat1, lng1, lat2, lng2);
-}
-
-function normalizeAngle(angle) {
-  let a = angle % 360;
-  if (a < 0) a += 360;
-  return a;
-}
-
 function shortestAngleDiff(from, to) {
-  let diff = normalizeAngle(to) - normalizeAngle(from);
-  if (diff > 180) diff -= 360;
-  if (diff < -180) diff += 360;
-  return diff;
+  return ((to - from + 540) % 360) - 180;
 }
 
-function updateDeviceHeading(newHeading) {
-  if (newHeading === null || Number.isNaN(newHeading)) return;
-
-  if (smoothedHeading === null) {
-    smoothedHeading = normalizeAngle(newHeading);
-  } else {
-    const diff = shortestAngleDiff(smoothedHeading, newHeading);
-    smoothedHeading = normalizeAngle(smoothedHeading + diff * HEADING_SMOOTHING);
-  }
-
-  deviceHeading = smoothedHeading;
-
-  if (lastKnownLat !== null && lastKnownLng !== null) {
-    updateNavigation(lastKnownLat, lastKnownLng);
-  }
-}
-
-function updateGpsStatus(accuracy) {
-  const dot = document.getElementById("gpsStatusDot");
-  const text = document.getElementById("gpsStatusText");
-
-  if (!dot || !text) return;
-
-  dot.classList.remove("gps-good", "gps-medium", "gps-bad");
-
-  if (accuracy <= 12) {
-    dot.classList.add("gps-good");
-    text.innerText = "GPS-status: goed";
-  } else if (accuracy <= 25) {
-    dot.classList.add("gps-medium");
-    text.innerText = "GPS-status: matig";
-  } else {
-    dot.classList.add("gps-bad");
-    text.innerText = "GPS-status: zwak";
-  }
+function smoothAngle(current, target, factor) {
+  const diff = shortestAngleDiff(current, target);
+  return (current + diff * factor + 360) % 360;
 }
 
 function updateNavigation(lat, lng) {
@@ -658,44 +652,39 @@ function updateNavigation(lat, lng) {
 
   const targetBearing = getBearing(lat, lng, cp.coords[0], cp.coords[1]);
 
-  let referenceHeading = null;
+  let rotation = targetBearing;
 
-  if (preferMovementHeading && smoothedHeading !== null) {
-    referenceHeading = smoothedHeading;
-  } else if (deviceHeading !== null) {
-    referenceHeading = deviceHeading;
+  if (deviceHeading !== null) {
+    rotation = targetBearing - deviceHeading;
   }
 
-  let desiredRotation;
+  rotation = (rotation + 360) % 360;
 
-  if (referenceHeading !== null) {
-    desiredRotation = targetBearing - referenceHeading;
+  if (smoothedHeading === null) {
+    smoothedHeading = rotation;
   } else {
-    desiredRotation = targetBearing;
+    smoothedHeading = smoothAngle(smoothedHeading, rotation, HEADING_SMOOTHING);
   }
 
-  desiredRotation = normalizeAngle(desiredRotation);
-
-  const diff = shortestAngleDiff(currentArrowRotation, desiredRotation);
-  currentArrowRotation = normalizeAngle(currentArrowRotation + diff * 0.22);
-
-  const arrow = document.getElementById("arrow");
-  if (arrow) {
-    arrow.style.transform = "rotate(" + currentArrowRotation + "deg)";
-  }
+  currentArrowRotation = smoothedHeading;
+  document.getElementById("arrow").style.transform = "rotate(" + currentArrowRotation + "deg)";
 }
+
 function handleOrientation(event) {
   let heading = null;
 
   if (typeof event.webkitCompassHeading === "number") {
     heading = event.webkitCompassHeading;
-  } else if (typeof event.alpha === "number") {
+  } else if (event.alpha !== null) {
     heading = 360 - event.alpha;
   }
 
-  if (heading === null || Number.isNaN(heading)) return;
+  if (heading === null) return;
+  deviceHeading = (heading + 360) % 360;
 
-  updateDeviceHeading(heading);
+  if (lastKnownLat !== null && lastKnownLng !== null) {
+    updateNavigation(lastKnownLat, lastKnownLng);
+  }
 }
 
 async function enableCompass() {
@@ -844,10 +833,6 @@ async function uploadPhotoForCheckpoint(cp) {
 
   if (!selectedPhotoFile) {
     photoStatus.innerText = "Kies eerst een foto.";
-    const uploadBtn = document.getElementById("uploadBtn");
-    if (uploadBtn) {
-      uploadBtn.classList.add("error");
-    }
     return false;
   }
 
@@ -896,11 +881,10 @@ async function uploadPhotoForCheckpoint(cp) {
       queueData
     );
 
-    console.log("UploadQueue pad:", `uploadQueue/${currentCityKey}/${gameState.groupId}/${safeCheckpointName}`);
-    console.log("Queue data:", queueData);
-
     uploadedPhotoPending = true;
     photoStatus.innerText = "Foto doorgestuurd. De verwerking kan even duren.";
+
+    console.log("Foto in wachtrij gezet:", queueData);
 
     return true;
   } catch (error) {
@@ -964,6 +948,20 @@ function nextCheckpoint() {
   saveLocalState();
 }
 
+function updateGpsStatus(isGood, text) {
+  const dot = document.getElementById("gpsStatusDot");
+  const txt = document.getElementById("gpsStatusText");
+  if (!dot || !txt) return;
+
+  dot.style.backgroundColor = isGood ? "#21c55d" : "#ef4444";
+  txt.innerText = text;
+}
+
+function distanceBetween(lat1, lng1, lat2, lng2) {
+  if (!map) return 0;
+  return map.distance([lat1, lng1], [lat2, lng2]);
+}
+
 function startGPS() {
   if (gpsWatchId !== null) {
     navigator.geolocation.clearWatch(gpsWatchId);
@@ -971,87 +969,48 @@ function startGPS() {
 
   gpsWatchId = navigator.geolocation.watchPosition(
     (pos) => {
-      const lat = pos.coords.latitude;
-      const lng = pos.coords.longitude;
+      const now = Date.now();
+      const rawLat = pos.coords.latitude;
+      const rawLng = pos.coords.longitude;
       const accuracy = pos.coords.accuracy || 9999;
-      const speed = pos.coords.speed;
 
-      updateGpsStatus(accuracy);
+      updateGpsStatus(
+        accuracy <= 25,
+        "GPS-status: " + Math.round(accuracy) + " m nauwkeurigheid"
+      );
 
-      if (accuracy > 40) {
-        console.log("GPS update genegeerd wegens lage nauwkeurigheid:", accuracy);
-        document.getElementById("status").innerText =
-          "GPS-signaal is momenteel te zwak. Wandel even verder of wacht enkele seconden.";
-        return;
+      if (filteredLat === null || filteredLng === null) {
+        filteredLat = rawLat;
+        filteredLng = rawLng;
+      } else {
+        filteredLat = filteredLat + (rawLat - filteredLat) * LOCATION_SMOOTHING;
+        filteredLng = filteredLng + (rawLng - filteredLng) * LOCATION_SMOOTHING;
       }
 
-      const now = Date.now();
-
       if (lastProcessedLat !== null && lastProcessedLng !== null) {
-        const moved = getDistanceMeters(
-          lastProcessedLat,
-          lastProcessedLng,
-          lat,
-          lng
-        );
+        const moved = distanceBetween(filteredLat, filteredLng, lastProcessedLat, lastProcessedLng);
+        const tooSoon = now - lastLocationUpdateTime < GPS_MIN_UPDATE_MS;
 
-        if (moved < GPS_MIN_DISTANCE_METERS && now - lastLocationUpdateTime < GPS_MIN_UPDATE_MS) {
+        if (moved < GPS_MIN_DISTANCE_METERS && tooSoon) {
           return;
         }
       }
 
+      lastProcessedLat = filteredLat;
+      lastProcessedLng = filteredLng;
       lastLocationUpdateTime = now;
 
-      const prevLat = filteredLat;
-      const prevLng = filteredLng;
-
-      lastProcessedLat = lat;
-      lastProcessedLng = lng;
-
-      if (filteredLat === null || filteredLng === null) {
-        filteredLat = lat;
-        filteredLng = lng;
-      } else {
-        filteredLat = filteredLat + (lat - filteredLat) * LOCATION_SMOOTHING;
-        filteredLng = filteredLng + (lng - filteredLng) * LOCATION_SMOOTHING;
-      }
-
       updateLocation(filteredLat, filteredLng);
-
-      if (prevLat !== null && prevLng !== null) {
-        const headingFromMovement = calculateMovementHeading(
-          prevLat,
-          prevLng,
-          filteredLat,
-          filteredLng
-        );
-
-        if (headingFromMovement !== null) {
-          smoothedHeading = headingFromMovement;
-          updateNavigation(filteredLat, filteredLng);
-        }
-    }
     },
     (err) => {
-      const text = document.getElementById("gpsStatusText");
-      const dot = document.getElementById("gpsStatusDot");
-
-      if (dot) {
-        dot.classList.remove("gps-good", "gps-medium");
-        dot.classList.add("gps-bad");
-      }
-
-      if (text) {
-        text.innerText = "GPS-status: geen signaal";
-      }
-
+      updateGpsStatus(false, "GPS-status: fout");
       document.getElementById("status").innerText = "GPS kon niet worden opgehaald.";
       console.error(err);
     },
     {
       enableHighAccuracy: true,
-      maximumAge: 1000,
-      timeout: 8000
+      maximumAge: 0,
+      timeout: 10000
     }
   );
 }
@@ -1337,7 +1296,7 @@ async function handleCityChange(cityKey) {
   currentCityKey = cityKey;
   setActiveCityUI(cityKey);
 
-  if (!cityKey || !cities[cityKey]) return;
+  if (!cityKey) return;
 
   currentCheckpoints = await loadCheckpointsForCity(cityKey);
   cityLoaded = true;
@@ -1350,6 +1309,16 @@ async function handleCityChange(cityKey) {
     await restoreSessionIfPossible();
   }
 }
+
+onValue(ref(db, "cities"), (snapshot) => {
+  citiesCache = snapshot.val() || {};
+  if (currentCityKey) {
+    setActiveCityUI(currentCityKey);
+    if (map) {
+      resetMapToCity();
+    }
+  }
+});
 
 onValue(ref(db, "control/currentCity"), async (snapshot) => {
   const cityKey = snapshot.val();
