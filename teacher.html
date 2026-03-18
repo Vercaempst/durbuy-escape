@@ -8,56 +8,72 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 </head>
 <body>
-  <div class="container">
-    <h1>Begeleidersdashboard</h1>
-
+  <div id="loginScreen" class="container">
     <div class="card">
-      <h2>Actieve stad</h2>
-      <select id="citySelector"></select>
-      <button id="setCityButton">Activeer stad</button>
-      <p id="currentCityInfo"></p>
+      <h1>Begeleidersdashboard</h1>
+      <h2>Login vereist</h2>
+      <input type="email" id="email" placeholder="Email">
+      <input type="password" id="password" placeholder="Wachtwoord">
+      <button onclick="login()">Login</button>
     </div>
+  </div>
 
-    <div class="card">
-      <h2>Zoek leerling of groep</h2>
-      <input id="searchInput" type="text" placeholder="Typ naam leerling of groepsnaam">
-      <div id="searchResult"></div>
-    </div>
-
-    <div class="card">
-      <h2>Algemene controle</h2>
-      <div class="button-grid">
-        <button id="sendGatherButton">Stuur iedereen naar verzamelpunt</button>
-        <button id="resumeGameButton">Hervat normaal spel</button>
+  <div id="appContent" style="display:none;">
+    <div class="container">
+      <div class="card">
+        <h1>Begeleidersdashboard</h1>
+        <p id="loginStatus"></p>
+        <button onclick="logout()">Logout</button>
       </div>
 
-      <input id="broadcastMessageInput" type="text" placeholder="Typ een bericht voor alle groepen">
-      <button id="sendBroadcastButton">Stuur bericht naar alle groepen</button>
-
-      <button id="resetDatabaseButton">Reset databases</button>
-      <p id="globalActionFeedback"></p>
-    </div>
-
-    <div class="card">
-      <h2>Live scorebord</h2>
-      <div id="rankingContainer"></div>
-    </div>
-
-    <div id="map"></div>
-
-    <div class="card">
-      <button id="showAllGroupsButton">Toon opnieuw alle groepen</button>
-    </div>
-
-    <div class="card">
-      <h2>Groepsdetail</h2>
-      <div id="groupDetailContainer">
-        <p>Klik op een groep om de volledige route en detailinfo te zien.</p>
+      <div class="card">
+        <h2>Actieve stad</h2>
+        <select id="citySelector"></select>
+        <button id="setCityButton">Activeer stad</button>
+        <p id="currentCityInfo"></p>
       </div>
-    </div>
 
-    <h2>Groepen</h2>
-    <div id="groupsContainer"></div>
+      <div class="card">
+        <h2>Zoek leerling of groep</h2>
+        <input id="searchInput" type="text" placeholder="Typ naam leerling of groepsnaam">
+        <div id="searchResult"></div>
+      </div>
+
+      <div class="card">
+        <h2>Algemene controle</h2>
+        <div class="button-grid">
+          <button id="sendGatherButton">Stuur iedereen naar verzamelpunt</button>
+          <button id="resumeGameButton">Hervat normaal spel</button>
+        </div>
+
+        <input id="broadcastMessageInput" type="text" placeholder="Typ een bericht voor alle groepen">
+        <button id="sendBroadcastButton">Stuur bericht naar alle groepen</button>
+
+        <button id="resetDatabaseButton">Reset databases</button>
+        <p id="globalActionFeedback"></p>
+      </div>
+
+      <div class="card">
+        <h2>Live scorebord</h2>
+        <div id="rankingContainer"></div>
+      </div>
+
+      <div id="map"></div>
+
+      <div class="card">
+        <button id="showAllGroupsButton">Toon opnieuw alle groepen</button>
+      </div>
+
+      <div class="card">
+        <h2>Groepsdetail</h2>
+        <div id="groupDetailContainer">
+          <p>Klik op een groep om de volledige route en detailinfo te zien.</p>
+        </div>
+      </div>
+
+      <h2>Groepen</h2>
+      <div id="groupsContainer"></div>
+    </div>
   </div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
