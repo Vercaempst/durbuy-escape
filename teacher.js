@@ -503,6 +503,7 @@ function renderGroups(groups, force = false) {
           <button data-action="message" data-id="${group.id}">Stuur bericht</button>
           <button data-action="focus" data-id="${group.id}">Toon op kaart</button>
           <button data-action="reset" data-id="${group.id}">Reset groep</button>
+          <button data-action="delete" data-id="${group.id}" style="background:#e74c3c;color:white;">Verwijder groep</button>
         </div>
       `;
 
@@ -595,6 +596,28 @@ function renderGroups(groups, force = false) {
           commandResetAt: Date.now()
         });
       }
+      if (action === "delete") {
+          const confirmDelete = confirm("Ben je zeker dat je deze groep volledig wil verwijderen?");
+          if (!confirmDelete) return;
+        
+          const group = groupsCache.find(g => g.id === id);
+          if (!group) return;
+        
+          // groep verwijderen
+          await set(ref(db, "groups/" + id), null);
+        
+          // uploads verwijderen
+          if (group.cityKey) {
+            await set(ref(db, `uploadQueue/${group.cityKey}/${id}`), null);
+            await set(ref(db, `photoSubmissions/${group.cityKey}/${id}`), null);
+          }
+        
+          // UI resetten indien nodig
+          if (selectedGroupId === id) {
+            selectedGroupId = null;
+            resetToAllGroupsView();
+          }
+        }
     });
   });
 
