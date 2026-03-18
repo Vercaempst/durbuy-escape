@@ -44,6 +44,20 @@ let currentPuzzleSelectedIndex = null;
 let selectedPhotoFile = null;
 let uploadedPhotoPending = false;
 
+let gpsWatchId = null;
+let filteredLat = null;
+let filteredLng = null;
+let smoothedHeading = null;
+let currentArrowRotation = 0;
+let lastLocationUpdateTime = 0;
+let lastProcessedLat = null;
+let lastProcessedLng = null;
+
+const GPS_MIN_DISTANCE_METERS = 4;
+const GPS_MIN_UPDATE_MS = 1200;
+const LOCATION_SMOOTHING = 0.25;
+const HEADING_SMOOTHING = 0.18;
+
 let gameState = {
   groupId: null,
   groupNumber: null,
@@ -494,7 +508,9 @@ function checkDistance(lat, lng) {
   if (!cp) return;
 
   const dist = map.distance([lat, lng], cp.coords);
-  document.getElementById("distanceText").innerText = "Afstand: " + Math.round(dist) + " m";
+  const roundedDist = dist < 20 ? Math.round(dist) : Math.round(dist / 5) * 5;
+
+  document.getElementById("distanceText").innerText = "Afstand: " + roundedDist + " m";
 
   if (gameState.gatherMode) {
     if (dist < cp.radius) {
@@ -502,7 +518,7 @@ function checkDistance(lat, lng) {
         "Jullie zijn aangekomen op het verzamelpunt. Wacht op verdere instructies.";
     } else {
       document.getElementById("status").innerText =
-        "Ga naar het verzamelpunt. Nog " + Math.round(dist) + " meter.";
+        "Ga naar het verzamelpunt. Nog " + roundedDist + " meter.";
     }
     return;
   }
@@ -513,7 +529,7 @@ function checkDistance(lat, lng) {
         "Jullie zijn aangekomen op het verzamelpunt. Proficiat met jullie score.";
     } else {
       document.getElementById("status").innerText =
-        "Proficiat. Ga nu naar het verzamelpunt. Nog " + Math.round(dist) + " meter.";
+        "Proficiat. Ga nu naar het verzamelpunt. Nog " + roundedDist + " meter.";
     }
     return;
   }
@@ -525,7 +541,7 @@ function checkDistance(lat, lng) {
     }
   } else {
     document.getElementById("status").innerText =
-      "Nog " + Math.round(dist) + " meter tot " + cp.name + ".";
+      "Nog " + roundedDist + " meter tot " + cp.name + ".";
   }
 }
 
@@ -553,19 +569,89 @@ function getBearing(lat1, lng1, lat2, lng2) {
   return bearing;
 }
 
+function getDistanceMeters(lat1, lng1, lat2, lng2) {
+  const R = 6371000;
+  const dLat = toRadians(lat2 - lat1);
+  const dLng = toRadians(lng2 - lng1);
+
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRadians(lat1)) *
+      Math.cos(toRadians(lat2)) *
+      Math.sin(dLng / 2) *
+      Math.sin(dLng / 2);
+
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
+function calculateMovementHeading(lat1, lng1, lat2, lng2) {
+  if (
+    lat1 === null ||
+    lng1 === null ||
+    lat2 === null ||
+    lng2 === null
+  ) {
+    return null;
+  }
+
+  const dist = getDistanceMeters(lat1, lng1, lat2, lng2);
+  if (dist < 3) return null;
+
+  return getBearing(lat1, lng1, lat2, lng2);
+}
+
+function normalizeAngle(angle) {
+  let a = angle % 360;
+  if (a < 0) a += 360;
+  return a;
+}
+
+function shortestAngleDiff(from, to) {
+  let diff = normalizeAngle(to) - normalizeAngle(from);
+  if (diff > 180) diff -= 360;
+  if (diff < -180) diff += 360;
+  return diff;
+}
+
+function updateDeviceHeading(newHeading) {
+  if (newHeading === null || Number.isNaN(newHeading)) return;
+
+  if (smoothedHeading === null) {
+    smoothedHeading = normalizeAngle(newHeading);
+  } else {
+    const diff = shortestAngleDiff(smoothedHeading, newHeading);
+    smoothedHeading = normalizeAngle(smoothedHeading + diff * HEADING_SMOOTHING);
+  }
+
+  deviceHeading = smoothedHeading;
+
+  if (lastKnownLat !== null && lastKnownLng !== null) {
+    updateNavigation(lastKnownLat, lastKnownLng);
+  }
+}
+
 function updateNavigation(lat, lng) {
   const cp = getCurrentCheckpoint();
   if (!cp) return;
 
   const targetBearing = getBearing(lat, lng, cp.coords[0], cp.coords[1]);
 
-  let rotation = targetBearing;
+  let desiredRotation = targetBearing;
 
   if (deviceHeading !== null) {
-    rotation = targetBearing - deviceHeading;
+    desiredRotation = targetBearing - deviceHeading;
   }
 
-  document.getElementById("arrow").style.transform = "rotate(" + rotation + "deg)";
+  desiredRotation = normalizeAngle(desiredRotation);
+
+  const diff = shortestAngleDiff(currentArrowRotation, desiredRotation);
+  currentArrowRotation = normalizeAngle(currentArrowRotation + diff * 0.22);
+
+  const arrow = document.getElementById("arrow");
+  if (arrow) {
+    arrow.style.transform = "rotate(" + currentArrowRotation + "deg)";
+  }
 }
 
 function handleOrientation(event) {
@@ -573,17 +659,13 @@ function handleOrientation(event) {
 
   if (typeof event.webkitCompassHeading === "number") {
     heading = event.webkitCompassHeading;
-  } else if (event.alpha !== null) {
+  } else if (typeof event.alpha === "number") {
     heading = 360 - event.alpha;
   }
 
-  if (heading === null) return;
+  if (heading === null || Number.isNaN(heading)) return;
 
-  deviceHeading = (heading + 360) % 360;
-
-  if (lastKnownLat !== null && lastKnownLng !== null) {
-    updateNavigation(lastKnownLat, lastKnownLng);
-  }
+  updateDeviceHeading(heading);
 }
 
 async function enableCompass() {
@@ -732,6 +814,10 @@ async function uploadPhotoForCheckpoint(cp) {
 
   if (!selectedPhotoFile) {
     photoStatus.innerText = "Kies eerst een foto.";
+    const uploadBtn = document.getElementById("uploadBtn");
+    if (uploadBtn) {
+      uploadBtn.classList.add("error");
+    }
     return false;
   }
 
@@ -780,10 +866,11 @@ async function uploadPhotoForCheckpoint(cp) {
       queueData
     );
 
+    console.log("UploadQueue pad:", `uploadQueue/${currentCityKey}/${gameState.groupId}/${safeCheckpointName}`);
+    console.log("Queue data:", queueData);
+
     uploadedPhotoPending = true;
     photoStatus.innerText = "Foto doorgestuurd. De verwerking kan even duren.";
-
-    console.log("Foto in wachtrij gezet:", queueData);
 
     return true;
   } catch (error) {
@@ -848,9 +935,67 @@ function nextCheckpoint() {
 }
 
 function startGPS() {
-  navigator.geolocation.watchPosition(
+  if (gpsWatchId !== null) {
+    navigator.geolocation.clearWatch(gpsWatchId);
+  }
+
+  gpsWatchId = navigator.geolocation.watchPosition(
     (pos) => {
-      updateLocation(pos.coords.latitude, pos.coords.longitude);
+      const lat = pos.coords.latitude;
+      const lng = pos.coords.longitude;
+      const accuracy = pos.coords.accuracy || 9999;
+      const speed = pos.coords.speed;
+
+      if (accuracy > 40) {
+        console.log("GPS update genegeerd wegens lage nauwkeurigheid:", accuracy);
+        return;
+      }
+
+      const now = Date.now();
+
+      if (lastProcessedLat !== null && lastProcessedLng !== null) {
+        const moved = getDistanceMeters(
+          lastProcessedLat,
+          lastProcessedLng,
+          lat,
+          lng
+        );
+
+        if (moved < GPS_MIN_DISTANCE_METERS && now - lastLocationUpdateTime < GPS_MIN_UPDATE_MS) {
+          return;
+        }
+      }
+
+      lastLocationUpdateTime = now;
+
+      const prevLat = filteredLat;
+      const prevLng = filteredLng;
+
+      lastProcessedLat = lat;
+      lastProcessedLng = lng;
+
+      if (filteredLat === null || filteredLng === null) {
+        filteredLat = lat;
+        filteredLng = lng;
+      } else {
+        filteredLat = filteredLat + (lat - filteredLat) * LOCATION_SMOOTHING;
+        filteredLng = filteredLng + (lng - filteredLng) * LOCATION_SMOOTHING;
+      }
+
+      updateLocation(filteredLat, filteredLng);
+
+      if (typeof speed === "number" && speed > 1 && prevLat !== null && prevLng !== null) {
+        const headingFromMovement = calculateMovementHeading(
+          prevLat,
+          prevLng,
+          filteredLat,
+          filteredLng
+        );
+
+        if (headingFromMovement !== null) {
+          updateDeviceHeading(headingFromMovement);
+        }
+      }
     },
     (err) => {
       document.getElementById("status").innerText = "GPS kon niet worden opgehaald.";
@@ -858,8 +1003,8 @@ function startGPS() {
     },
     {
       enableHighAccuracy: true,
-      maximumAge: 0,
-      timeout: 10000
+      maximumAge: 1000,
+      timeout: 8000
     }
   );
 }
