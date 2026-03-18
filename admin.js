@@ -1,9 +1,3 @@
-import {
-  getAuth,
-  signInWithEmailAndPassword,
-  onAuthStateChanged
-} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-
 import { cities as fallbackCities } from "./cities.js";
 import { firebaseConfig } from "./firebase-config.js";
 
@@ -16,9 +10,16 @@ import {
   remove,
   onValue
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+import {
+  getAuth,
+  signInWithEmailAndPassword,
+  onAuthStateChanged,
+  signOut
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
+const auth = getAuth(app);
 
 let citiesCache = {};
 let activeCityKey = null;
@@ -27,6 +28,39 @@ let selectedIndex = null;
 let map;
 let markers = [];
 let tempClickMarker = null;
+
+function login() {
+  const email = document.getElementById("email").value.trim();
+  const password = document.getElementById("password").value;
+
+  signInWithEmailAndPassword(auth, email, password)
+    .catch((error) => {
+      alert("Login mislukt: " + error.message);
+    });
+}
+
+function logout() {
+  signOut(auth).catch((error) => {
+    alert("Uitloggen mislukt: " + error.message);
+  });
+}
+
+window.login = login;
+window.logout = logout;
+
+function setProtectedUIVisible(isVisible) {
+  const loginScreen = document.getElementById("loginScreen");
+  const appContent = document.getElementById("appContent");
+  const loginStatus = document.getElementById("loginStatus");
+
+  if (loginScreen) loginScreen.style.display = isVisible ? "none" : "block";
+  if (appContent) appContent.style.display = isVisible ? "block" : "none";
+  if (loginStatus) {
+    loginStatus.innerText = isVisible && auth.currentUser
+      ? "Ingelogd als: " + auth.currentUser.email
+      : "";
+  }
+}
 
 function buildFallbackCityRecord(key, city) {
   const gatherCoords = Array.isArray(city.gather)
@@ -106,6 +140,8 @@ function getCityRecord(cityKey) {
 
 function populateCitySelector() {
   const select = document.getElementById("adminCitySelector");
+  if (!select) return;
+
   select.innerHTML = "";
 
   const mergedKeys = Array.from(
@@ -147,8 +183,10 @@ function fillCityForm(cityKey) {
   document.getElementById("gatherLngInput").value = city.gather?.coords?.[1] ?? "";
   document.getElementById("gatherRadiusInput").value = city.gather?.radius ?? 40;
 
-  document.getElementById("adminCityInfo").innerText =
-    "Huidige stad: " + (city.name || cityKey);
+  const adminCityInfo = document.getElementById("adminCityInfo");
+  if (adminCityInfo) {
+    adminCityInfo.innerText = "Huidige stad: " + (city.name || cityKey);
+  }
 }
 
 function initMap() {
@@ -209,6 +247,8 @@ function taskTypeLabel(type) {
 
 function renderCheckpointList() {
   const container = document.getElementById("checkpointList");
+  if (!container) return;
+
   container.innerHTML = "";
 
   if (checkpoints.length === 0) {
@@ -602,7 +642,9 @@ async function saveAllToFirebase() {
 
 function startNewCityForm() {
   activeCityKey = null;
-  document.getElementById("adminCitySelector").value = "";
+  const selector = document.getElementById("adminCitySelector");
+  if (selector) selector.value = "";
+
   document.getElementById("cityKeyInput").value = "";
   document.getElementById("cityNameInput").value = "";
   document.getElementById("cityCenterLat").value = "";
@@ -616,7 +658,10 @@ function startNewCityForm() {
   renderCheckpointList();
   renderMarkers();
   clearForm();
-  document.getElementById("adminCityInfo").innerText = "Nieuwe stad aanmaken";
+
+  const info = document.getElementById("adminCityInfo");
+  if (info) info.innerText = "Nieuwe stad aanmaken";
+
   document.getElementById("adminFeedback").innerText = "Vul de nieuwe stadsgegevens in.";
 }
 
@@ -654,7 +699,7 @@ if (activeCityKey) {
   clearForm();
 }
 
-document.getElementById("adminCitySelector").addEventListener("change", () => {
+document.getElementById("adminCitySelector")?.addEventListener("change", () => {
   activeCityKey = document.getElementById("adminCitySelector").value;
   fillCityForm(activeCityKey);
   resetMapCity();
@@ -664,21 +709,25 @@ document.getElementById("adminCitySelector").addEventListener("change", () => {
   renderMarkers();
 });
 
-document.getElementById("cpTaskType").addEventListener("change", toggleTaskFields);
-document.getElementById("loadCityButton").addEventListener("click", loadCityFromFirebase);
-document.getElementById("loadTemplateButton").addEventListener("click", loadTemplateData);
-document.getElementById("newCityButton").addEventListener("click", startNewCityForm);
-document.getElementById("saveCityButton").addEventListener("click", saveCityToFirebase);
-document.getElementById("deleteCityButton").addEventListener("click", deleteCityFromFirebase);
-document.getElementById("newCheckpointButton").addEventListener("click", clearForm);
-document.getElementById("saveCheckpointButton").addEventListener("click", saveCheckpointToList);
-document.getElementById("deleteCheckpointButton").addEventListener("click", () => {
+document.getElementById("cpTaskType")?.addEventListener("change", toggleTaskFields);
+document.getElementById("loadCityButton")?.addEventListener("click", loadCityFromFirebase);
+document.getElementById("loadTemplateButton")?.addEventListener("click", loadTemplateData);
+document.getElementById("newCityButton")?.addEventListener("click", startNewCityForm);
+document.getElementById("saveCityButton")?.addEventListener("click", saveCityToFirebase);
+document.getElementById("deleteCityButton")?.addEventListener("click", deleteCityFromFirebase);
+document.getElementById("newCheckpointButton")?.addEventListener("click", clearForm);
+document.getElementById("saveCheckpointButton")?.addEventListener("click", saveCheckpointToList);
+document.getElementById("deleteCheckpointButton")?.addEventListener("click", () => {
   if (selectedIndex === null) {
     document.getElementById("adminFeedback").innerText = "Selecteer eerst een checkpoint.";
     return;
   }
   deleteCheckpoint(selectedIndex);
 });
-document.getElementById("saveAllButton").addEventListener("click", saveAllToFirebase);
+document.getElementById("saveAllButton")?.addEventListener("click", saveAllToFirebase);
 
 toggleTaskFields();
+
+onAuthStateChanged(auth, (user) => {
+  setProtectedUIVisible(!!user);
+});
