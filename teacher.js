@@ -1,4 +1,4 @@
-import { cities, getGatherCheckpoint } from "./cities.js";
+import { cities as fallbackCities, getGatherCheckpoint as getFallbackGatherCheckpoint } from "./cities.js";
 import { firebaseConfig } from "./firebase-config.js";
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
@@ -14,6 +14,7 @@ import {
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 
+let citiesCache = {};
 let activeCityKey = null;
 let groupsCache = [];
 let markers = {};
@@ -27,8 +28,102 @@ let detailLines = [];
 let cityCheckpointsCache = [];
 let photoSubmissionsCache = {};
 
-const firstCityKey = Object.keys(cities)[0];
-const defaultCenter = cities[firstCityKey].center;
+function getCityRecord(cityKey) {
+  const firebaseCity = citiesCache[cityKey];
+  const fallbackCity = fallbackCities[cityKey];
+
+  if (firebaseCity) {
+    const center = Array.isArray(firebaseCity.center)
+      ? firebaseCity.center
+      : fallbackCity?.center || [50.85, 4.35];
+
+    let gather;
+    if (Array.isArray(firebaseCity.gather)) {
+      gather = {
+        name: "Verzamelpunt",
+        coords: firebaseCity.gather,
+        radius: 40
+      };
+    } else if (firebaseCity.gather?.coords) {
+      gather = {
+        name: firebaseCity.gather.name || "Verzamelpunt",
+        coords: firebaseCity.gather.coords,
+        radius: Number(firebaseCity.gather.radius || 40)
+      };
+    } else if (fallbackCity) {
+      gather = {
+        name: "Verzamelpunt",
+        coords: Array.isArray(fallbackCity.gather) ? fallbackCity.gather : fallbackCity.center,
+        radius: 40
+      };
+    } else {
+      gather = {
+        name: "Verzamelpunt",
+        coords: center,
+        radius: 40
+      };
+    }
+
+    return {
+      name: firebaseCity.name || fallbackCity?.name || cityKey,
+      center,
+      gather,
+      defaultCheckpoints: fallbackCity?.defaultCheckpoints || []
+    };
+  }
+
+  if (fallbackCity) {
+    return {
+      name: fallbackCity.name || cityKey,
+      center: fallbackCity.center || [50.85, 4.35],
+      gather: {
+        name: "Verzamelpunt",
+        coords: Array.isArray(fallbackCity.gather) ? fallbackCity.gather : fallbackCity.center,
+        radius: 40
+      },
+      defaultCheckpoints: fallbackCity.defaultCheckpoints || []
+    };
+  }
+
+  return {
+    name: cityKey || "Onbekende stad",
+    center: [50.85, 4.35],
+    gather: {
+      name: "Verzamelpunt",
+      coords: [50.85, 4.35],
+      radius: 40
+    },
+    defaultCheckpoints: []
+  };
+}
+
+function getGatherCheckpoint(cityKey) {
+  if (citiesCache[cityKey]?.gather?.coords) {
+    const city = getCityRecord(cityKey);
+    return {
+      name: city.gather.name || "Verzamelpunt",
+      coords: city.gather.coords,
+      radius: city.gather.radius || 40,
+      question: "",
+      answers: [],
+      pointsCorrect: 0,
+      pointsAfterMaxTries: 0
+    };
+  }
+
+  return getFallbackGatherCheckpoint(cityKey);
+}
+
+const mergedCityKeys = () =>
+  Array.from(
+    new Set([
+      ...Object.keys(fallbackCities || {}),
+      ...Object.keys(citiesCache || {})
+    ])
+  ).sort((a, b) => a.localeCompare(b));
+
+const firstCityKey = Object.keys(fallbackCities)[0] || "durbuy";
+const defaultCenter = getCityRecord(firstCityKey).center;
 
 let map = L.map("map").setView(defaultCenter, 15);
 
@@ -72,12 +167,17 @@ function populateCitySelector() {
   const select = document.getElementById("citySelector");
   select.innerHTML = "";
 
-  Object.entries(cities).forEach(([key, city]) => {
+  mergedCityKeys().forEach((key) => {
+    const city = getCityRecord(key);
     const option = document.createElement("option");
     option.value = key;
     option.textContent = city.name;
     select.appendChild(option);
   });
+
+  if (activeCityKey && mergedCityKeys().includes(activeCityKey)) {
+    select.value = activeCityKey;
+  }
 }
 
 async function loadCheckpointsForCity(cityKey) {
@@ -90,7 +190,7 @@ async function loadCheckpointsForCity(cityKey) {
     }
   }
 
-  return cities[cityKey]?.defaultCheckpoints || [];
+  return getCityRecord(cityKey).defaultCheckpoints || [];
 }
 
 async function ensureCityCheckpointsLoaded() {
@@ -112,11 +212,12 @@ function generateRoute(groupNumber, checkpointCount) {
 }
 
 function setMapCity(cityKey) {
-  if (!cities[cityKey]) return;
+  const city = getCityRecord(cityKey);
+  if (!city) return;
 
-  map.setView(cities[cityKey].center, 15);
+  map.setView(city.center, 15);
   document.getElementById("currentCityInfo").innerText =
-    "Actieve stad: " + cities[cityKey].name;
+    "Actieve stad: " + city.name;
 }
 
 function clearMarkersNotInView(validIds) {
@@ -140,8 +241,8 @@ function resetToAllGroupsView() {
   clearDetailLayers();
   renderGroupDetail(null);
 
-  if (activeCityKey && cities[activeCityKey]) {
-    map.setView(cities[activeCityKey].center, 15);
+  if (activeCityKey) {
+    map.setView(getCityRecord(activeCityKey).center, 15);
   }
 
   lastGroupsRenderSignature = "";
@@ -370,7 +471,7 @@ function drawGroupDetailOnMap(group, steps) {
   }
 
   if (group.gatherMode || group.finished) {
-    const gatherCoords = cities[activeCityKey]?.gather;
+    const gatherCoords = getCityRecord(activeCityKey)?.gather?.coords;
     if (gatherCoords) {
       const marker = L.marker(gatherCoords, { icon: gatherIcon })
         .addTo(map)
@@ -503,7 +604,6 @@ function renderGroups(groups, force = false) {
           <button data-action="message" data-id="${group.id}">Stuur bericht</button>
           <button data-action="focus" data-id="${group.id}">Toon op kaart</button>
           <button data-action="reset" data-id="${group.id}">Reset groep</button>
-          <button data-action="delete" data-id="${group.id}" style="background:#e74c3c;color:white;">Verwijder groep</button>
         </div>
       `;
 
@@ -596,28 +696,6 @@ function renderGroups(groups, force = false) {
           commandResetAt: Date.now()
         });
       }
-      if (action === "delete") {
-          const confirmDelete = confirm("Ben je zeker dat je deze groep volledig wil verwijderen?");
-          if (!confirmDelete) return;
-        
-          const group = groupsCache.find(g => g.id === id);
-          if (!group) return;
-        
-          // groep verwijderen
-          await set(ref(db, "groups/" + id), null);
-        
-          // uploads verwijderen
-          if (group.cityKey) {
-            await set(ref(db, `uploadQueue/${group.cityKey}/${id}`), null);
-            await set(ref(db, `photoSubmissions/${group.cityKey}/${id}`), null);
-          }
-        
-          // UI resetten indien nodig
-          if (selectedGroupId === id) {
-            selectedGroupId = null;
-            resetToAllGroupsView();
-          }
-        }
     });
   });
 
@@ -768,12 +846,21 @@ document.getElementById("searchInput").addEventListener("input", (e) => {
   applySearch(e.target.value);
 });
 
+onValue(ref(db, "cities"), (snapshot) => {
+  citiesCache = snapshot.val() || {};
+  populateCitySelector();
+
+  if (activeCityKey) {
+    setMapCity(activeCityKey);
+  }
+});
+
 onValue(ref(db, "control/currentCity"), async (snapshot) => {
   const cityKey = snapshot.val();
 
   activeCityKey = cityKey;
 
-  if (cityKey && cities[cityKey]) {
+  if (cityKey) {
     document.getElementById("citySelector").value = cityKey;
     setMapCity(cityKey);
     cityCheckpointsCache = await loadCheckpointsForCity(cityKey);
