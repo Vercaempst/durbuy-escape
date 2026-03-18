@@ -1,5 +1,5 @@
 export const firebaseConfig = {
-  apiKey: "AIzaSyDSblhmRLoIMFMtGlBMGZo-_HKSnGOMLWM",
+  apiKey: "AIzaSyDSblhmRLolMFMtGlBMGZo-_HKSnGOMLWM",
   authDomain: "durbuy-escape.firebaseapp.com",
   projectId: "durbuy-escape",
   storageBucket: "durbuy-escape.firebasestorage.app",
