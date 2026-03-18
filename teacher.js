@@ -1,9 +1,3 @@
-import {
-  getAuth,
-  signInWithEmailAndPassword,
-  onAuthStateChanged
-} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-
 import { cities as fallbackCities, getGatherCheckpoint as getFallbackGatherCheckpoint } from "./cities.js";
 import { firebaseConfig } from "./firebase-config.js";
 
@@ -16,9 +10,16 @@ import {
   set,
   get
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+import {
+  getAuth,
+  signInWithEmailAndPassword,
+  onAuthStateChanged,
+  signOut
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
+const auth = getAuth(app);
 
 let citiesCache = {};
 let activeCityKey = null;
@@ -33,6 +34,39 @@ let detailMarkers = [];
 let detailLines = [];
 let cityCheckpointsCache = [];
 let photoSubmissionsCache = {};
+
+function login() {
+  const email = document.getElementById("email").value.trim();
+  const password = document.getElementById("password").value;
+
+  signInWithEmailAndPassword(auth, email, password)
+    .catch((error) => {
+      alert("Login mislukt: " + error.message);
+    });
+}
+
+function logout() {
+  signOut(auth).catch((error) => {
+    alert("Uitloggen mislukt: " + error.message);
+  });
+}
+
+window.login = login;
+window.logout = logout;
+
+function setProtectedUIVisible(isVisible) {
+  const loginScreen = document.getElementById("loginScreen");
+  const appContent = document.getElementById("appContent");
+  const loginStatus = document.getElementById("loginStatus");
+
+  if (loginScreen) loginScreen.style.display = isVisible ? "none" : "block";
+  if (appContent) appContent.style.display = isVisible ? "block" : "none";
+  if (loginStatus) {
+    loginStatus.innerText = isVisible && auth.currentUser
+      ? "Ingelogd als: " + auth.currentUser.email
+      : "";
+  }
+}
 
 function getCityRecord(cityKey) {
   const firebaseCity = citiesCache[cityKey];
@@ -171,6 +205,8 @@ const gatherIcon = L.divIcon({
 
 function populateCitySelector() {
   const select = document.getElementById("citySelector");
+  if (!select) return;
+
   select.innerHTML = "";
 
   mergedCityKeys().forEach((key) => {
@@ -222,8 +258,10 @@ function setMapCity(cityKey) {
   if (!city) return;
 
   map.setView(city.center, 15);
-  document.getElementById("currentCityInfo").innerText =
-    "Actieve stad: " + city.name;
+  const currentCityInfo = document.getElementById("currentCityInfo");
+  if (currentCityInfo) {
+    currentCityInfo.innerText = "Actieve stad: " + city.name;
+  }
 }
 
 function clearMarkersNotInView(validIds) {
@@ -278,6 +316,8 @@ function updateMarker(id, g) {
 
 function renderRanking(groups) {
   const container = document.getElementById("rankingContainer");
+  if (!container) return;
+
   container.innerHTML = "";
 
   if (groups.length === 0) {
@@ -382,6 +422,7 @@ function getGroupPhotoSubmissions(group) {
 
 async function renderGroupDetail(group) {
   const container = document.getElementById("groupDetailContainer");
+  if (!container) return;
 
   if (!group) {
     clearDetailLayers();
@@ -557,6 +598,8 @@ function renderGroups(groups, force = false) {
   lastGroupsRenderSignature = signature;
 
   const container = document.getElementById("groupsContainer");
+  if (!container) return;
+
   container.innerHTML = "";
 
   if (groups.length === 0) {
@@ -715,6 +758,7 @@ function renderGroups(groups, force = false) {
 
 function renderSearchResult(hit) {
   const container = document.getElementById("searchResult");
+  if (!container) return;
 
   if (!hit) {
     container.innerHTML = "<p>Geen leerling of groep gevonden.</p>";
@@ -753,7 +797,8 @@ function applySearch(query) {
   const q = query.toLowerCase().trim();
 
   if (!q) {
-    document.getElementById("searchResult").innerHTML = "";
+    const searchResult = document.getElementById("searchResult");
+    if (searchResult) searchResult.innerHTML = "";
     return;
   }
 
@@ -767,12 +812,12 @@ function applySearch(query) {
 
 populateCitySelector();
 
-document.getElementById("setCityButton").addEventListener("click", async () => {
+document.getElementById("setCityButton")?.addEventListener("click", async () => {
   const cityKey = document.getElementById("citySelector").value;
   await set(ref(db, "control/currentCity"), cityKey);
 });
 
-document.getElementById("sendGatherButton").addEventListener("click", async () => {
+document.getElementById("sendGatherButton")?.addEventListener("click", async () => {
   if (!activeCityKey) return;
 
   const gather = getGatherCheckpoint(activeCityKey);
@@ -785,11 +830,11 @@ document.getElementById("sendGatherButton").addEventListener("click", async () =
     radius: gather.radius
   });
 
-  document.getElementById("globalActionFeedback").innerText =
-    "Iedereen is naar het verzamelpunt gestuurd.";
+  const feedback = document.getElementById("globalActionFeedback");
+  if (feedback) feedback.innerText = "Iedereen is naar het verzamelpunt gestuurd.";
 });
 
-document.getElementById("resumeGameButton").addEventListener("click", async () => {
+document.getElementById("resumeGameButton")?.addEventListener("click", async () => {
   if (!activeCityKey) return;
 
   await set(ref(db, "control/globalCommands/" + activeCityKey), {
@@ -797,15 +842,15 @@ document.getElementById("resumeGameButton").addEventListener("click", async () =
     at: Date.now()
   });
 
-  document.getElementById("globalActionFeedback").innerText =
-    "Het normale spel is hervat.";
+  const feedback = document.getElementById("globalActionFeedback");
+  if (feedback) feedback.innerText = "Het normale spel is hervat.";
 });
 
-document.getElementById("sendBroadcastButton").addEventListener("click", async () => {
+document.getElementById("sendBroadcastButton")?.addEventListener("click", async () => {
   if (!activeCityKey) return;
 
   const input = document.getElementById("broadcastMessageInput");
-  const text = input.value.trim();
+  const text = input?.value.trim();
 
   if (!text) return;
 
@@ -814,13 +859,13 @@ document.getElementById("sendBroadcastButton").addEventListener("click", async (
     at: Date.now()
   });
 
-  document.getElementById("globalActionFeedback").innerText =
-    "Bericht naar alle groepen verstuurd.";
+  const feedback = document.getElementById("globalActionFeedback");
+  if (feedback) feedback.innerText = "Bericht naar alle groepen verstuurd.";
 
   input.value = "";
 });
 
-document.getElementById("resetDatabaseButton").addEventListener("click", async () => {
+document.getElementById("resetDatabaseButton")?.addEventListener("click", async () => {
   const confirmReset = confirm(
     "Ben je zeker?\n\nAlle groepen worden verwijderd, groepnummers worden gereset en alle open leerlingtoestellen worden terug naar het startscherm gestuurd."
   );
@@ -844,11 +889,11 @@ document.getElementById("resetDatabaseButton").addEventListener("click", async (
   alert("Database volledig gereset.");
 });
 
-document.getElementById("showAllGroupsButton").addEventListener("click", () => {
+document.getElementById("showAllGroupsButton")?.addEventListener("click", () => {
   resetToAllGroupsView();
 });
 
-document.getElementById("searchInput").addEventListener("input", (e) => {
+document.getElementById("searchInput")?.addEventListener("input", (e) => {
   applySearch(e.target.value);
 });
 
@@ -867,13 +912,14 @@ onValue(ref(db, "control/currentCity"), async (snapshot) => {
   activeCityKey = cityKey;
 
   if (cityKey) {
-    document.getElementById("citySelector").value = cityKey;
+    const citySelector = document.getElementById("citySelector");
+    if (citySelector) citySelector.value = cityKey;
     setMapCity(cityKey);
     cityCheckpointsCache = await loadCheckpointsForCity(cityKey);
   } else {
     cityCheckpointsCache = [];
-    document.getElementById("currentCityInfo").innerText =
-      "Nog geen stad geactiveerd.";
+    const currentCityInfo = document.getElementById("currentCityInfo");
+    if (currentCityInfo) currentCityInfo.innerText = "Nog geen stad geactiveerd.";
   }
 
   if (selectedGroupId) {
@@ -900,7 +946,8 @@ onValue(ref(db, "groups"), (snapshot) => {
     renderRanking([]);
     renderGroups([], true);
     clearMarkersNotInView(validIds);
-    document.getElementById("searchResult").innerHTML = "";
+    const searchResult = document.getElementById("searchResult");
+    if (searchResult) searchResult.innerHTML = "";
     return;
   }
 
@@ -918,4 +965,8 @@ onValue(ref(db, "groups"), (snapshot) => {
   groupsCache = groups;
   renderRanking(groups);
   renderGroups(groups);
+});
+
+onAuthStateChanged(auth, (user) => {
+  setProtectedUIVisible(!!user);
 });
