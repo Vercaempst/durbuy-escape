@@ -631,6 +631,26 @@ function updateDeviceHeading(newHeading) {
   }
 }
 
+function updateGpsStatus(accuracy) {
+  const dot = document.getElementById("gpsStatusDot");
+  const text = document.getElementById("gpsStatusText");
+
+  if (!dot || !text) return;
+
+  dot.classList.remove("gps-good", "gps-medium", "gps-bad");
+
+  if (accuracy <= 12) {
+    dot.classList.add("gps-good");
+    text.innerText = "GPS-status: goed";
+  } else if (accuracy <= 25) {
+    dot.classList.add("gps-medium");
+    text.innerText = "GPS-status: matig";
+  } else {
+    dot.classList.add("gps-bad");
+    text.innerText = "GPS-status: zwak";
+  }
+}
+
 function updateNavigation(lat, lng) {
   const cp = getCurrentCheckpoint();
   if (!cp) return;
