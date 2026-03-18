@@ -3,21 +3,46 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Checkpoint editor</title>
+  <title>City Escape Admin</title>
   <link rel="stylesheet" href="style.css">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 </head>
 <body>
   <div class="container">
-    <h1>Checkpoint editor</h1>
+    <h1>City Escape Admin</h1>
 
     <div class="card">
-      <h2>Stad</h2>
+      <h2>Stad beheren</h2>
       <select id="adminCitySelector"></select>
+
       <div class="button-grid">
         <button id="loadCityButton">Laad stad uit Firebase</button>
-        <button id="loadTemplateButton">Laad standaarddata</button>
+        <button id="loadTemplateButton">Laad template uit cities.js</button>
+        <button id="newCityButton">Nieuwe stad</button>
       </div>
+
+      <input id="cityKeyInput" type="text" placeholder="City key, bv. durbuy">
+      <input id="cityNameInput" type="text" placeholder="Stadsnaam">
+
+      <div class="button-grid">
+        <input id="cityCenterLat" type="number" step="any" placeholder="Center latitude">
+        <input id="cityCenterLng" type="number" step="any" placeholder="Center longitude">
+      </div>
+
+      <input id="gatherNameInput" type="text" placeholder="Naam verzamelpunt">
+
+      <div class="button-grid">
+        <input id="gatherLatInput" type="number" step="any" placeholder="Gather latitude">
+        <input id="gatherLngInput" type="number" step="any" placeholder="Gather longitude">
+      </div>
+
+      <input id="gatherRadiusInput" type="number" placeholder="Radius verzamelpunt in meter">
+
+      <div class="button-grid">
+        <button id="saveCityButton">Bewaar stad in Firebase</button>
+        <button id="deleteCityButton">Verwijder stad uit Firebase</button>
+      </div>
+
       <p id="adminCityInfo"></p>
     </div>
 
@@ -25,12 +50,47 @@
 
     <div class="card">
       <h2>Checkpoint bewerken</h2>
+
       <input id="cpName" type="text" placeholder="Naam checkpoint">
       <input id="cpLat" type="number" step="any" placeholder="Latitude">
       <input id="cpLng" type="number" step="any" placeholder="Longitude">
       <input id="cpRadius" type="number" placeholder="Radius in meter">
-      <textarea id="cpQuestion" placeholder="Vraag"></textarea>
-      <input id="cpAnswers" type="text" placeholder="Antwoorden, gescheiden door komma's">
+
+      <select id="cpTaskType">
+        <option value="text">Tekstvraag</option>
+        <option value="riddle">Raadsel</option>
+        <option value="multipleChoice">Meerkeuze</option>
+        <option value="matching">Matching</option>
+        <option value="imagePuzzle">Afbeeldingspuzzel</option>
+        <option value="photo">Foto-opdracht</option>
+      </select>
+
+      <textarea id="cpQuestion" placeholder="Vraag of opdracht"></textarea>
+
+      <div id="textTaskFields">
+        <input id="cpAnswers" type="text" placeholder="Antwoorden, gescheiden door komma's">
+      </div>
+
+      <div id="multipleChoiceFields" style="display:none;">
+        <textarea id="cpOptions" placeholder="Meerkeuze-opties, 1 per lijn"></textarea>
+        <input id="cpCorrectOption" type="number" min="0" placeholder="Index correct antwoord, start bij 0">
+      </div>
+
+      <div id="matchingFields" style="display:none;">
+        <textarea id="cpLeftItems" placeholder="Linker kolom, 1 per lijn"></textarea>
+        <textarea id="cpRightItems" placeholder="Rechter kolom, 1 per lijn"></textarea>
+        <textarea id="cpCorrectPairs" placeholder='Correcte koppels, 1 per lijn, bv. Brug=Over de rivier'></textarea>
+      </div>
+
+      <div id="imagePuzzleFields" style="display:none;">
+        <input id="cpImageUrl" type="text" placeholder="Afbeelding URL of pad, bv. images/brug.jpg">
+        <input id="cpGridSize" type="number" min="2" placeholder="Grid size, bv. 3">
+      </div>
+
+      <div id="photoFields" style="display:none;">
+        <p class="small-note">Bij foto-opdrachten volstaat de opdrachttekst. De upload verloopt via de leerlingpagina.</p>
+      </div>
+
       <input id="cpPointsCorrect" type="number" placeholder="Punten bij juist antwoord">
       <input id="cpPointsAfterMaxTries" type="number" placeholder="Punten na 3 pogingen">
 
