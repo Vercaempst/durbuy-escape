@@ -61,10 +61,12 @@ function setProtectedUIVisible(isVisible) {
 
   if (loginScreen) loginScreen.style.display = isVisible ? "none" : "block";
   if (appContent) appContent.style.display = isVisible ? "block" : "none";
+
   if (loginStatus) {
-    loginStatus.innerText = isVisible && auth.currentUser
-      ? "Ingelogd als: " + auth.currentUser.email
-      : "";
+    loginStatus.innerText =
+      isVisible && auth.currentUser
+        ? "Ingelogd als: " + auth.currentUser.email
+        : "";
   }
 }
 
@@ -154,13 +156,14 @@ function getGatherCheckpoint(cityKey) {
   return getFallbackGatherCheckpoint(cityKey);
 }
 
-const mergedCityKeys = () =>
-  Array.from(
+function mergedCityKeys() {
+  return Array.from(
     new Set([
       ...Object.keys(fallbackCities || {}),
       ...Object.keys(citiesCache || {})
     ])
   ).sort((a, b) => a.localeCompare(b));
+}
 
 const firstCityKey = Object.keys(fallbackCities)[0] || "durbuy";
 const defaultCenter = getCityRecord(firstCityKey).center;
