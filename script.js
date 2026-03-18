@@ -966,8 +966,12 @@ function startGPS() {
       const accuracy = pos.coords.accuracy || 9999;
       const speed = pos.coords.speed;
 
+      updateGpsStatus(accuracy);
+
       if (accuracy > 40) {
         console.log("GPS update genegeerd wegens lage nauwkeurigheid:", accuracy);
+        document.getElementById("status").innerText =
+          "GPS-signaal is momenteel te zwak. Wandel even verder of wacht enkele seconden.";
         return;
       }
 
@@ -1018,6 +1022,18 @@ function startGPS() {
       }
     },
     (err) => {
+      const text = document.getElementById("gpsStatusText");
+      const dot = document.getElementById("gpsStatusDot");
+
+      if (dot) {
+        dot.classList.remove("gps-good", "gps-medium");
+        dot.classList.add("gps-bad");
+      }
+
+      if (text) {
+        text.innerText = "GPS-status: geen signaal";
+      }
+
       document.getElementById("status").innerText = "GPS kon niet worden opgehaald.";
       console.error(err);
     },
