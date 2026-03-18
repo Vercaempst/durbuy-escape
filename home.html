@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8">
+  <title>Escape Game</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body style="display:flex;align-items:center;justify-content:center;height:100vh;flex-direction:column;gap:20px;">
+
+  <h1>Escape Game</h1>
+
+  <button onclick="goStudent()">🎒 Deelnemer</button>
+  <button onclick="goTeacher()">👨‍🏫 Leerkracht</button>
+  <button onclick="goAdmin()">⚙️ Admin</button>
+
+  <script>
+    function goStudent() {
+      window.location.href = "index.html";
+    }
+
+    function goTeacher() {
+      window.location.href = "teacher.html";
+    }
+
+    function goAdmin() {
+      window.location.href = "admin.html";
+    }
+  </script>
+
+</body>
+</html>
