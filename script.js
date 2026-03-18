@@ -222,12 +222,19 @@ function resetPhotoTaskUI() {
   const photoInput = document.getElementById("photoInput");
   const photoPreview = document.getElementById("photoPreview");
   const photoStatus = document.getElementById("photoUploadStatus");
+  const uploadBtn = document.getElementById("uploadBtn");
 
   if (photoInput) photoInput.value = "";
   if (photoStatus) photoStatus.innerText = "";
   if (photoPreview) {
     photoPreview.src = "";
     photoPreview.classList.add("hidden-task");
+  }
+
+  if (uploadBtn) {
+    uploadBtn.innerText = "📸 Neem of upload groepsfoto";
+    uploadBtn.classList.remove("selected");
+    uploadBtn.classList.remove("error");
   }
 }
 
@@ -295,6 +302,7 @@ function attachPhotoListeners() {
   const photoInput = document.getElementById("photoInput");
   const photoPreview = document.getElementById("photoPreview");
   const photoStatus = document.getElementById("photoUploadStatus");
+  const uploadBtn = document.getElementById("uploadBtn");
 
   if (!photoInput) return;
 
@@ -307,6 +315,12 @@ function attachPhotoListeners() {
       photoPreview.src = "";
       photoPreview.classList.add("hidden-task");
       photoStatus.innerText = "";
+
+      if (uploadBtn) {
+        uploadBtn.innerText = "📸 Neem of upload groepsfoto";
+        uploadBtn.classList.remove("selected");
+        uploadBtn.classList.remove("error");
+      }
       return;
     }
 
@@ -318,6 +332,12 @@ function attachPhotoListeners() {
     reader.readAsDataURL(file);
 
     photoStatus.innerText = "Foto gekozen. Klik op 'Controleer opdracht' om te verzenden.";
+
+    if (uploadBtn) {
+      uploadBtn.innerText = "✔️ Foto gekozen";
+      uploadBtn.classList.add("selected");
+      uploadBtn.classList.remove("error");
+    }
   };
 }
 
