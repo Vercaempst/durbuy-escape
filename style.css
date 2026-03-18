@@ -112,6 +112,34 @@ button:hover{
   will-change: transform;
 }
 
+#gpsStatusWrapper {
+  margin-top: 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.95rem;
+}
+
+#gpsStatusDot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  display: inline-block;
+  background: #999;
+}
+
+.gps-good {
+  background: #2ecc71 !important;
+}
+
+.gps-medium {
+  background: #f39c12 !important;
+}
+
+.gps-bad {
+  background: #e74c3c !important;
+}
+
 .group-card,
 .checkpoint-card{
   border: 1px solid #ddd;
