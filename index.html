@@ -52,8 +52,7 @@
     }
 
     #taskArea input[type="text"],
-    #taskArea select,
-    #taskArea input[type="file"] {
+    #taskArea select {
       width: 100%;
       padding: 10px;
       margin-top: 8px;
@@ -72,6 +71,29 @@
     .upload-status {
       font-size: 0.95rem;
       margin-top: 8px;
+    }
+
+    .uploadButton {
+      display: block;
+      width: 100%;
+      text-align: center;
+      background: #2b7cff;
+      color: white;
+      padding: 12px;
+      border-radius: 10px;
+      font-weight: bold;
+      cursor: pointer;
+      margin-top: 10px;
+      transition: 0.2s;
+      box-sizing: border-box;
+    }
+
+    .uploadButton.selected {
+      background: #2ecc71;
+    }
+
+    .uploadButton.error {
+      background: #e74c3c;
     }
   </style>
 </head>
@@ -134,7 +156,12 @@
         </div>
 
         <div id="taskPhotoWrapper" class="hidden-task">
-          <input id="photoInput" type="file" accept="image/*" capture="environment">
+          <label for="photoInput" id="uploadBtn" class="uploadButton">
+            📸 Neem of upload groepsfoto
+          </label>
+
+          <input id="photoInput" type="file" accept="image/*" capture="environment" style="display:none">
+
           <img id="photoPreview" class="hidden-task" alt="Voorbeeld van gekozen foto">
           <p id="photoUploadStatus" class="upload-status"></p>
         </div>
