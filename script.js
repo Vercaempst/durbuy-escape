@@ -682,6 +682,8 @@ function updateCollectibleMarkerVisibility(lat, lng) {
   const item = activeCollectibleSearch.item;
   const visibility = getCollectibleVisibilityMode();
   const revealDistance = Number(item.revealDistance || currentGameType?.settings?.revealDistance || 15);
+  const searchRadius = Number(item.searchRadius || currentGameType?.settings?.searchRadius || 30);
+  const dist = map.distance([lat, lng], item.coords);
 
   if (visibility === "none") {
     if (collectibleMarker) {
@@ -692,15 +694,43 @@ function updateCollectibleMarkerVisibility(lat, lng) {
   }
 
   if (visibility === "blurZone") {
-    if (collectibleMarker) {
-      map.removeLayer(collectibleMarker);
-      collectibleMarker = null;
+    const shouldShowMarker =
+      (hasModule("clickableItems") || currentGameType?.engine === "collectibles" || currentGameType?.engine === "murder") &&
+      dist <= searchRadius;
+
+    if (!shouldShowMarker) {
+      if (collectibleMarker) {
+        map.removeLayer(collectibleMarker);
+        collectibleMarker = null;
+      }
+      return;
     }
+
+    if (!collectibleMarker) {
+      const iconHtml = item.icon || "✨";
+      collectibleIcon = L.divIcon({
+        className: "custom-emoji-icon",
+        html: `<div style="font-size:34px; line-height:34px; filter: drop-shadow(0 0 10px rgba(217,74,255,1));">${iconHtml}</div>`,
+        iconSize: [34, 34],
+        iconAnchor: [17, 34],
+        popupAnchor: [0, -26]
+      });
+
+      collectibleMarker = L.marker(item.coords, { icon: collectibleIcon }).addTo(map);
+      collectibleMarker.on("click", () => {
+        collectEvidenceItem(item);
+      });
+      collectibleMarker.bindPopup(item.name || "Verborgen object");
+    } else {
+      collectibleMarker.setLatLng(item.coords);
+    }
+
     return;
   }
 
-  const dist = map.distance([lat, lng], item.coords);
-  const shouldShow = visibility === "alwaysVisible" || (visibility === "showWhenNearby" && dist <= revealDistance);
+  const shouldShow =
+    visibility === "alwaysVisible" ||
+    (visibility === "showWhenNearby" && dist <= revealDistance);
 
   if (!shouldShow) {
     if (collectibleMarker) {
@@ -714,24 +744,20 @@ function updateCollectibleMarkerVisibility(lat, lng) {
     const iconHtml = item.icon || "✨";
     collectibleIcon = L.divIcon({
       className: "custom-emoji-icon",
-      html: `<div style="font-size:30px; line-height:30px;">${iconHtml}</div>`,
-      iconSize: [30, 30],
-      iconAnchor: [15, 30],
+      html: `<div style="font-size:34px; line-height:34px; filter: drop-shadow(0 0 10px rgba(217,74,255,1));">${iconHtml}</div>`,
+      iconSize: [34, 34],
+      iconAnchor: [17, 34],
       popupAnchor: [0, -26]
     });
 
     collectibleMarker = L.marker(item.coords, { icon: collectibleIcon }).addTo(map);
-
     collectibleMarker.on("click", () => {
-      if (hasModule("clickableItems") || currentGameType?.engine === "collectibles" || currentGameType?.engine === "murder") {
-        collectEvidenceItem(item);
-      }
+      collectEvidenceItem(item);
     });
+    collectibleMarker.bindPopup(item.name || "Verborgen object");
   } else {
     collectibleMarker.setLatLng(item.coords);
   }
-
-  collectibleMarker.bindPopup(item.name || "Verborgen object");
 }
 
 function startCollectibleSearch(cp) {
@@ -748,11 +774,25 @@ function startCollectibleSearch(cp) {
 
   clearSearchCollectibleLayers();
 
-  if (map && (hasModule("searchZones") || getCollectibleVisibilityMode() === "blurZone")) {
+  if (checkpointMarker && map) {
+    map.removeLayer(checkpointMarker);
+    checkpointMarker = null;
+  }
+
+  if (checkpointCircle && map) {
+    map.removeLayer(checkpointCircle);
+    checkpointCircle = null;
+  }
+
+  if (map) {
     searchZoneCircle = L.circle(item.coords, {
       radius: item.searchRadius || currentGameType?.settings?.searchRadius || 30,
-      opacity: 0.75,
-      fillOpacity: 0.12
+      className: "collectible-search-zone",
+      color: "#d652ff",
+      weight: 5,
+      opacity: 0.95,
+      fillColor: "#a000ff",
+      fillOpacity: 0.18
     }).addTo(map);
   }
 
@@ -1470,32 +1510,34 @@ function checkDistance(lat, lng) {
   const dist = map.distance([lat, lng], target.coords);
   byId("distanceText").innerText = "Afstand: " + Math.round(dist) + " m";
 
-  if (activeCollectibleSearch) {
-    byId("status").innerText = "Zoek het verborgen object. Nog " + Math.round(dist) + " meter tot de zone.";
+   if (activeCollectibleSearch) {
+  byId("status").innerText =
+    "Zoek het verborgen object. Nog " + Math.round(dist) + " meter tot de zone.";
 
-    updateCollectibleMarkerVisibility(lat, lng);
+  updateCollectibleMarkerVisibility(lat, lng);
 
-    const item = activeCollectibleSearch.item;
-    const revealDistance = Number(item.revealDistance || currentGameType?.settings?.revealDistance || 15);
+  const item = activeCollectibleSearch.item;
+  const revealDistance = Number(item.revealDistance || currentGameType?.settings?.revealDistance || 15);
+  const searchRadius = Number(item.searchRadius || currentGameType?.settings?.searchRadius || 30);
 
-    if ((getCollectibleVisibilityMode() === "showWhenNearby" || getCollectibleVisibilityMode() === "alwaysVisible") && dist <= revealDistance) {
-      if (!hasModule("clickableItems")) {
-        collectEvidenceItem(item);
-        return;
-      }
+  if ((getCollectibleVisibilityMode() === "showWhenNearby" || getCollectibleVisibilityMode() === "alwaysVisible") && dist <= revealDistance) {
+    if (!hasModule("clickableItems")) {
+      collectEvidenceItem(item);
+      return;
     }
-
-    if (getCollectibleVisibilityMode() === "blurZone" && dist <= (item.searchRadius || 30)) {
-      if (!hasModule("clickableItems")) {
-        collectEvidenceItem(item);
-        return;
-      }
-      byId("status").innerText = "Jullie zitten in de zoekzone. Zoek en klik het object aan.";
-    }
-
-    return;
   }
 
+  if (getCollectibleVisibilityMode() === "blurZone" && dist <= searchRadius) {
+    if (!hasModule("clickableItems")) {
+      collectEvidenceItem(item);
+      return;
+    }
+    byId("status").innerText = "Jullie zitten in de zoekzone. Zoek en klik het object aan.";
+  }
+
+  return;
+}
+  
   if (gameState.gatherMode) {
     if (dist < target.radius) {
       byId("status").innerText = "Jullie zijn aangekomen op het verzamelpunt. Wacht op verdere instructies.";
