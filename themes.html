@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>City Escape Themes</title>
+  <link rel="stylesheet" href="style.css?v=20260325-6">
+  <style>
+    .theme-preview {
+      padding: 20px;
+      border-radius: 16px;
+      margin-top: 16px;
+      min-height: 220px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .theme-preview-inner {
+      position: relative;
+      z-index: 2;
+    }
+
+    .theme-preview-fog::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: rgba(255,255,255,0.05);
+      pointer-events: none;
+      z-index: 1;
+    }
+
+    .theme-preview-card {
+      padding: 16px;
+      margin-top: 12px;
+      border-radius: 12px;
+    }
+
+    .theme-preview-buttons {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 12px;
+    }
+
+    .theme-preview-button {
+      padding: 10px 14px;
+      border: none;
+      cursor: pointer;
+      font-weight: 600;
+    }
+
+    .font-preview-text {
+      margin-top: 8px;
+      font-size: 1.2rem;
+    }
+
+    .icon-row {
+      font-size: 1.5rem;
+      display: flex;
+      gap: 12px;
+      margin-top: 10px;
+    }
+  </style>
+</head>
+<body>
+  <div id="loginScreen" class="container">
+    <div class="card">
+      <h1>Theme beheer</h1>
+      <h2>Login vereist</h2>
+      <input type="email" id="email" placeholder="Email">
+      <input type="password" id="password" placeholder="Wachtwoord">
+      <button onclick="login()">Login</button>
+    </div>
+  </div>
+
+  <div id="appContent" style="display:none;">
+    <div class="container">
+      <div class="card">
+        <h1>Theme beheer</h1>
+        <p id="loginStatus"></p>
+        <button onclick="logout()">Logout</button>
+      </div>
+
+      <div class="card">
+        <h2>Bewaarde thema's</h2>
+        <select id="themeSelector"></select>
+
+        <div class="button-grid">
+          <button id="loadThemeButton">Laad thema</button>
+          <button id="newThemeButton">Nieuw thema</button>
+          <button id="deleteThemeButton">Verwijder thema</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Thema bewerken</h2>
+
+        <input id="themeKeyInput" type="text" placeholder="Thema key, bv. heksen_donker">
+        <input id="themeNameInput" type="text" placeholder="Naam van thema">
+
+        <select id="themeBackgroundType">
+          <option value="color">Achtergrondkleur</option>
+          <option value="image">Achtergrondafbeelding</option>
+        </select>
+
+        <div class="button-grid">
+          <div>
+            <label for="themeBackgroundColor">Achtergrondkleur</label>
+            <input id="themeBackgroundColor" type="color" value="#1b1028">
+          </div>
+          <div>
+            <label for="themeTextColor">Tekstkleur</label>
+            <input id="themeTextColor" type="color" value="#ffffff">
+          </div>
+        </div>
+
+        <input id="themeBackgroundImage" type="text" placeholder="Achtergrondafbeelding URL of pad">
+
+        <div class="button-grid">
+          <div>
+            <label for="themeCardColor">Kaartkleur</label>
+            <input id="themeCardColor" type="text" placeholder="bv. rgba(34,20,52,0.88)">
+          </div>
+          <div>
+            <label for="themePrimaryColor">Primaire kleur</label>
+            <input id="themePrimaryColor" type="color" value="#7c5cc4">
+          </div>
+        </div>
+
+        <div class="button-grid">
+          <div>
+            <label for="themeSecondaryColor">Secundaire kleur</label>
+            <input id="themeSecondaryColor" type="color" value="#2e1f47">
+          </div>
+          <div>
+            <label for="themeButtonColor">Knopkleur</label>
+            <input id="themeButtonColor" type="color" value="#7c5cc4">
+          </div>
+        </div>
+
+        <div class="button-grid">
+          <div>
+            <label for="themeButtonTextColor">Knoptekstkleur</label>
+            <input id="themeButtonTextColor" type="color" value="#ffffff">
+          </div>
+          <div>
+            <label for="themeFontFamily">Font</label>
+            <select id="themeFontFamily">
+              <option value="Arial, sans-serif">Arial</option>
+              <option value="'Cinzel', serif">Cinzel</option>
+              <option value="'Merriweather', serif">Merriweather</option>
+              <option value="'Orbitron', sans-serif">Orbitron</option>
+              <option value="'Georgia', serif">Georgia</option>
+              <option value="'Trebuchet MS', sans-serif">Trebuchet MS</option>
+              <option value="'Times New Roman', serif">Times New Roman</option>
+            </select>
+            <div id="fontPreviewText" class="font-preview-text">
+              Voorbeeld van dit lettertype
+            </div>
+          </div>
+        </div>
+
+        <div class="button-grid">
+          <div>
+            <label for="themeIconCheckpoint">Checkpoint-icoon</label>
+            <select id="themeIconCheckpoint">
+              <option value="🚩">🚩 Vlag</option>
+              <option value="🧙">🧙 Heks</option>
+              <option value="📜">📜 Rol</option>
+              <option value="🕯️">🕯️ Kaars</option>
+              <option value="🗝️">🗝️ Sleutel</option>
+              <option value="👣">👣 Sporen</option>
+            </select>
+          </div>
+
+          <div>
+            <label for="themeIconGather">Verzamelpunt-icoon</label>
+            <select id="themeIconGather">
+              <option value="⭐">⭐ Ster</option>
+              <option value="🔮">🔮 Kristallen bol</option>
+              <option value="🏰">🏰 Kasteel</option>
+              <option value="🧭">🧭 Kompas</option>
+              <option value="📍">📍 Pin</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="button-grid">
+          <div>
+            <label for="themeIconPlayer">Speler-icoon</label>
+            <select id="themeIconPlayer">
+              <option value="🚶">🚶 Wandelaar</option>
+              <option value="🕵️">🕵️ Speurder</option>
+              <option value="🧙‍♀️">🧙‍♀️ Heks</option>
+              <option value="👣">👣 Sporen</option>
+            </select>
+          </div>
+
+          <div>
+            <label for="themeBackgroundMusic">Achtergrondgeluid</label>
+            <input id="themeBackgroundMusic" type="text" placeholder="URL of pad naar audio">
+          </div>
+        </div>
+
+        <div class="button-grid">
+          <div>
+            <label for="themeBackgroundMusicVolume">Volume achtergrondgeluid</label>
+            <input id="themeBackgroundMusicVolume" type="number" step="0.05" min="0" max="1" value="0.25">
+          </div>
+
+          <div>
+            <label for="themeBorderRadius">Border radius</label>
+            <input id="themeBorderRadius" type="text" placeholder="bv. 14px">
+          </div>
+        </div>
+
+        <input id="themeBoxShadow" type="text" placeholder="Box shadow, bv. 0 6px 18px rgba(0,0,0,0.35)">
+
+        <div class="checkbox-grid">
+          <label><input id="themeUseGlowEffect" type="checkbox"> Glow-effect</label>
+          <label><input id="themeUseFogEffect" type="checkbox"> Mist-effect</label>
+        </div>
+
+        <div class="button-grid">
+          <button id="saveThemeButton">Bewaar thema</button>
+          <button id="previewThemeButton">Vernieuw preview</button>
+        </div>
+
+        <p id="themeFeedback"></p>
+      </div>
+
+      <div class="card">
+        <h2>Live preview</h2>
+        <div id="themePreview" class="theme-preview">
+          <div class="theme-preview-inner">
+            <h2 id="previewTitle">Durbuy Escape</h2>
+            <p id="previewText">Een mysterieuze tocht door een stad met een eigen sfeer.</p>
+
+            <div class="icon-row">
+              <span id="previewCheckpointIcon">🚩</span>
+              <span id="previewGatherIcon">⭐</span>
+              <span id="previewPlayerIcon">🚶</span>
+            </div>
+
+            <div id="previewCard" class="theme-preview-card">
+              <h3>Checkpoint: De Fluisterende Rots</h3>
+              <p>Volgens oude verhalen werd hier meer gezien dan verklaard...</p>
+            </div>
+
+            <div class="theme-preview-buttons">
+              <button id="previewButtonA" class="theme-preview-button">Start</button>
+              <button id="previewButtonB" class="theme-preview-button">Volgende</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="themes.js?v=20260325-6"></script>
+</body>
+</html>

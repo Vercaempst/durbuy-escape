@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>City Escape Admin</title>
+  <link rel="stylesheet" href="style.css?v=20260325-7">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+</head>
+<body>
+  <div id="loginScreen" class="container">
+    <div class="card">
+      <h1>City Escape Admin</h1>
+      <h2>Login vereist</h2>
+      <input type="email" id="email" placeholder="Email">
+      <input type="password" id="password" placeholder="Wachtwoord">
+      <button onclick="login()">Login</button>
+    </div>
+  </div>
+
+  <div id="appContent" style="display:none;">
+    <div class="container">
+      <div class="card">
+        <h1>City Escape Admin</h1>
+        <p id="loginStatus"></p>
+        <div class="button-grid">
+          <button onclick="logout()">Logout</button>
+          <button type="button" onclick="window.location.href='themes.html'">Open themabeheer</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Stad beheren</h2>
+
+        <select id="adminCitySelector"></select>
+
+        <div class="button-grid">
+          <button id="loadCityButton">Laad stad uit Firebase</button>
+          <button id="loadTemplateButton">Laad template uit cities.js</button>
+          <button id="newCityButton">Nieuwe stad</button>
+        </div>
+
+        <input id="cityKeyInput" type="text" placeholder="City key, bv. durbuy">
+        <input id="cityNameInput" type="text" placeholder="Stadsnaam">
+
+        <div class="button-grid">
+          <input id="cityCenterLat" type="number" step="any" placeholder="Center latitude">
+          <input id="cityCenterLng" type="number" step="any" placeholder="Center longitude">
+        </div>
+
+        <input id="gatherNameInput" type="text" placeholder="Naam verzamelpunt">
+
+        <div class="button-grid">
+          <input id="gatherLatInput" type="number" step="any" placeholder="Gather latitude">
+          <input id="gatherLngInput" type="number" step="any" placeholder="Gather longitude">
+        </div>
+
+        <input id="gatherRadiusInput" type="number" placeholder="Radius verzamelpunt in meter">
+
+        <h3>Gekoppeld thema</h3>
+        <select id="cityThemeSelector"></select>
+        <p class="small-note">
+          Beheer of maak thema’s aan via de aparte pagina themabeheer.
+        </p>
+
+        <div class="button-grid">
+          <button id="saveCityButton">Bewaar stad in Firebase</button>
+          <button id="deleteCityButton">Verwijder stad uit Firebase</button>
+        </div>
+
+        <p id="adminCityInfo"></p>
+      </div>
+
+      <div id="map"></div>
+
+      <div class="card">
+        <h2>Checkpoint bewerken</h2>
+
+        <input id="cpName" type="text" placeholder="Naam checkpoint">
+
+        <div class="button-grid">
+          <input id="cpLat" type="number" step="any" placeholder="Latitude">
+          <input id="cpLng" type="number" step="any" placeholder="Longitude">
+        </div>
+
+        <input id="cpRadius" type="number" placeholder="Radius in meter">
+
+        <select id="cpTaskType">
+          <option value="text">Tekstvraag</option>
+          <option value="riddle">Raadsel</option>
+          <option value="multipleChoice">Meerkeuze</option>
+          <option value="matching">Matching</option>
+          <option value="imagePuzzle">Afbeeldingspuzzel</option>
+          <option value="photo">Foto-opdracht</option>
+        </select>
+
+        <textarea id="cpStory" placeholder="Verhaaltekst of intro voor dit checkpoint"></textarea>
+        <input id="cpVideo" type="text" placeholder="Videolink (YouTube/Vimeo/embed)">
+        <input id="cpAudio" type="text" placeholder="Audiolink">
+        <input id="cpCheckpointImage" type="text" placeholder="Extra afbeelding voor checkpoint">
+
+        <textarea id="cpQuestion" placeholder="Vraag of opdracht"></textarea>
+
+        <div id="textTaskFields">
+          <input id="cpAnswers" type="text" placeholder="Antwoorden, gescheiden door komma's">
+        </div>
+
+        <div id="multipleChoiceFields" style="display:none;">
+          <textarea id="cpOptions" placeholder="Meerkeuze-opties, 1 per lijn"></textarea>
+          <input id="cpCorrectOption" type="number" min="0" placeholder="Index correct antwoord, start bij 0">
+        </div>
+
+        <div id="matchingFields" style="display:none;">
+          <textarea id="cpLeftItems" placeholder="Linker kolom, 1 per lijn"></textarea>
+          <textarea id="cpRightItems" placeholder="Rechter kolom, 1 per lijn"></textarea>
+          <textarea id="cpCorrectPairs" placeholder="Correcte koppels, 1 per lijn, bv. Brug=Over de rivier"></textarea>
+        </div>
+
+        <div id="imagePuzzleFields" style="display:none;">
+          <input id="cpImageUrl" type="text" placeholder="Afbeelding URL of pad, bv. images/brug.jpg">
+          <input id="cpGridSize" type="number" min="2" placeholder="Grid size, bv. 3">
+        </div>
+
+        <div id="photoFields" style="display:none;">
+          <p class="small-note">
+            Bij foto-opdrachten volstaat de opdrachttekst. De effectieve upload gebeurt in de leerlingweergave.
+          </p>
+        </div>
+
+        <div class="button-grid">
+          <input id="cpPointsCorrect" type="number" placeholder="Punten bij juist antwoord">
+          <input id="cpPointsAfterMaxTries" type="number" placeholder="Punten na 3 pogingen">
+        </div>
+
+        <div class="button-grid">
+          <button id="newCheckpointButton">Nieuw checkpoint</button>
+          <button id="saveCheckpointButton">Opslaan in lijst</button>
+        </div>
+
+        <div class="button-grid">
+          <button id="deleteCheckpointButton">Verwijder geselecteerd checkpoint</button>
+          <button id="saveAllButton">Bewaar alle checkpoints in Firebase</button>
+        </div>
+
+        <p class="small-note">Klik op de kaart om latitude en longitude automatisch in te vullen.</p>
+        <p id="adminFeedback"></p>
+      </div>
+
+      <div class="card">
+        <h2>Checkpointlijst</h2>
+        <div id="checkpointList"></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script type="module" src="admin.js?v=20260325-7"></script>
+</body>
+</html>

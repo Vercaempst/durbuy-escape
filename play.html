@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>City Escape</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <style>
+    .mc-option {
+      display: block;
+      margin: 8px 0;
+      padding: 10px;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+
+    .matching-row {
+      display: flex;
+      gap: 10px;
+      margin: 10px 0;
+      align-items: center;
+    }
+
+    .matching-left {
+      min-width: 140px;
+      font-weight: bold;
+    }
+
+    .puzzle-grid {
+      display: grid;
+      gap: 4px;
+      margin-top: 12px;
+      margin-bottom: 12px;
+      justify-content: center;
+    }
+
+    .puzzle-tile {
+      border: 1px solid #999;
+      cursor: pointer;
+      background-repeat: no-repeat;
+      background-size: cover;
+    }
+
+    .puzzle-tile.selected {
+      outline: 3px solid #2b7cff;
+    }
+
+    .hidden-task {
+      display: none;
+    }
+
+    #taskArea input[type="text"],
+    #taskArea select {
+      width: 100%;
+      padding: 10px;
+      margin-top: 8px;
+      margin-bottom: 8px;
+      box-sizing: border-box;
+    }
+
+    #photoPreview {
+      display: block;
+      max-width: 100%;
+      max-height: 260px;
+      margin-top: 10px;
+      border-radius: 10px;
+    }
+
+    .upload-status {
+      font-size: 0.95rem;
+      margin-top: 8px;
+    }
+
+    .uploadButton {
+      display: block;
+      width: 100%;
+      text-align: center;
+      background: #2b7cff;
+      color: white;
+      padding: 12px;
+      border-radius: 10px;
+      font-weight: bold;
+      cursor: pointer;
+      margin-top: 10px;
+      transition: 0.2s;
+      box-sizing: border-box;
+    }
+
+    .uploadButton.selected {
+      background: #2ecc71;
+    }
+
+    .uploadButton.error {
+      background: #e74c3c;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1 id="appTitle">City Escape</h1>
+
+    <div id="loginCard" class="card">
+      <h2>Groep aanmelden</h2>
+      <input id="groupName" type="text" placeholder="Groepsnaam">
+      <input id="groupMembers" type="text" placeholder="Leden (vb: Emma - Noah - Liam - Mila)">
+      <button id="startButton">Start spel</button>
+      <p id="loginFeedback"></p>
+    </div>
+
+    <div id="gameArea" class="hidden">
+      <div class="card">
+        <h2 id="teamDisplay"></h2>
+        <p id="modeText">Spelmodus: normaal</p>
+        <p id="status">Locatie wordt opgehaald...</p>
+        <p id="progressText"></p>
+        <p id="scoreText"></p>
+
+        <div id="navigationBox">
+          <div id="arrow">⬆</div>
+          <p id="distanceText"></p>
+
+          <div id="gpsStatusWrapper">
+              <span id="gpsStatusDot"></span>
+              <span id="gpsStatusText">GPS-status: wordt bepaald...</span>
+          </div>
+        </div>
+
+      <div class="card">
+        <h2>Live scorebord</h2>
+        <div id="studentRankingContainer"></div>
+      </div>
+
+      <div id="map"></div>
+    </div>
+  </div>
+
+  <div id="questionModal" class="modal hidden">
+    <div class="modal-content">
+      <h2 id="modalTitle">Checkpoint</h2>
+      <p id="modalQuestion"></p>
+
+      <div id="taskArea">
+        <div id="taskTextWrapper" class="hidden-task">
+          <input id="modalAnswerInput" type="text" placeholder="Typ hier jullie antwoord">
+        </div>
+
+        <div id="taskMultipleChoiceWrapper" class="hidden-task">
+          <div id="multipleChoiceOptions"></div>
+        </div>
+
+        <div id="taskMatchingWrapper" class="hidden-task">
+          <div id="matchingContainer"></div>
+        </div>
+
+        <div id="taskImagePuzzleWrapper" class="hidden-task">
+          <p>Los de puzzel op door twee stukjes na elkaar aan te klikken om ze te wisselen.</p>
+          <div id="puzzleGrid" class="puzzle-grid"></div>
+        </div>
+
+        <div id="taskPhotoWrapper" class="hidden-task">
+          <label for="photoInput" id="uploadBtn" class="uploadButton">
+            📸 Neem of upload groepsfoto
+          </label>
+
+          <input id="photoInput" type="file" accept="image/*" capture="environment" style="display:none">
+
+          <img id="photoPreview" class="hidden-task" alt="Voorbeeld van gekozen foto">
+          <p id="photoUploadStatus" class="upload-status"></p>
+        </div>
+      </div>
+
+      <button id="submitAnswerButton">Controleer opdracht</button>
+      <p id="answerFeedback"></p>
+      <p id="triesFeedback"></p>
+    </div>
+  </div>
+
+  <div id="messageModal" class="modal hidden">
+    <div class="modal-content">
+      <h2>Bericht van de leerkracht</h2>
+      <p id="teacherMessageText"></p>
+      <button id="closeMessageButton">Sluiten</button>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script type="module" src="script.js"></script>
+</body>
+</html>

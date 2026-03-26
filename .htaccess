@@ -1,0 +1,13 @@
+SetEnv PHP_VER 5_3
+SetEnv REGISTER_GLOBALS 0
+
+RewriteEngine On
+
+# Als NIET www → redirect naar www
+RewriteCond %{HTTP_HOST} ^questly\.be$ [NC]
+RewriteRule ^(.*)$ https://www.questly.be/$1 [L,R=301]
+
+# HTTPS forceren voor www
+RewriteCond %{HTTPS} off
+RewriteCond %{HTTP_HOST} ^www\.questly\.be$ [NC]
+RewriteRule ^(.*)$ https://www.questly.be/$1 [L,R=301]
