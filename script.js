@@ -598,13 +598,13 @@ function closeFoundEvidenceModal() {
 function showGameIntro() {
   const modal = byId("gameIntroModal");
   if (!modal) return;
-  modal.classList.remove("hidden");
+  modal.style.display = "flex";
 }
 
 function closeGameIntro() {
   const modal = byId("gameIntroModal");
   if (!modal) return;
-  modal.classList.add("hidden");
+  modal.style.display = "none";
 }
 
 function collectEvidenceItem(item, options = {}) {
