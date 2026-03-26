@@ -154,17 +154,22 @@
     </div>
   </div>
 
-  <div id="gameIntroModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.85); justify-content:center; align-items:center; z-index:99999;">
-  <div class="intro-box">
-    <h1 id="gameIntroTitle">🧙‍♀️ Introductie</h1>
-    <p id="gameIntroText">
-      Eeuwenlang leefden heksen verborgen tussen de mensen.
-      <br><br>
-      Verzamel de verborgen voorwerpen en ontdek welk geheim hier werd achtergelaten.
-    </p>
-    <button id="closeGameIntroButton">Verder gaan</button>
+  <div id="gameIntroModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.88); justify-content:center; align-items:center; z-index:99999; overflow:hidden;">
+    <div class="intro-particles"></div>
+  
+    <div class="intro-box cinematic-intro">
+      <div class="intro-glow-ring"></div>
+      <div class="intro-symbol">🜃</div>
+  
+      <h1 id="gameIntroTitle">🧙‍♀️ Heksenjacht</h1>
+  
+      <p id="gameIntroText"></p>
+  
+      <div class="intro-buttons">
+        <button id="closeGameIntroButton">Verder gaan</button>
+      </div>
+    </div>
   </div>
-</div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script type="module" src="script.js?v=20260326-heks-1"></script>
