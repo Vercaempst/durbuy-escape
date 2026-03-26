@@ -550,3 +550,26 @@ a {
     grid-template-columns: 1fr;
   }
 }
+
+.collectible-search-zone {
+  stroke: rgba(214, 82, 255, 0.95) !important;
+  stroke-width: 5 !important;
+  fill: rgba(180, 40, 255, 0.22) !important;
+  filter: drop-shadow(0 0 8px rgba(217, 74, 255, 0.9)) drop-shadow(0 0 18px rgba(120, 40, 255, 0.55));
+  animation: collectiblePulse 2s ease-in-out infinite;
+}
+
+@keyframes collectiblePulse {
+  0% {
+    stroke-opacity: 0.7;
+    fill-opacity: 0.12;
+  }
+  50% {
+    stroke-opacity: 1;
+    fill-opacity: 0.3;
+  }
+  100% {
+    stroke-opacity: 0.7;
+    fill-opacity: 0.12;
+  }
+}
