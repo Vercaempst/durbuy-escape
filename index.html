@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>City Escape</title>
-  <link rel="stylesheet" href="style.css?v=20260325-5">
+  <link rel="stylesheet" href="style.css?v=20260326-heks-1">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 </head>
 <body>
@@ -26,6 +26,15 @@
         <p id="status">Locatie wordt opgehaald...</p>
         <p id="progressText"></p>
         <p id="scoreText"></p>
+
+        <div class="button-grid">
+          <button id="openEvidenceButton" type="button">🧙 Open heksendossier</button>
+        </div>
+
+        <div id="evidenceQuickBar" class="evidence-quickbar">
+          <p class="evidence-quickbar-title">Gevonden bewijsmateriaal</p>
+          <div id="evidenceQuickSlots" class="evidence-slot-grid"></div>
+        </div>
 
         <div id="navigationBox">
           <div id="arrow">⬆</div>
@@ -103,6 +112,40 @@
     </div>
   </div>
 
+  <div id="evidenceModal" class="modal hidden">
+    <div class="modal-content">
+      <h2>Heksendossier</h2>
+      <p id="evidenceIntroText">
+        Verzamel bewijsmateriaal in de stad en vul jullie dossier aan. Niet elk spoor is al zichtbaar...
+      </p>
+
+      <div id="evidenceGrid" class="evidence-slot-grid"></div>
+
+      <div id="evidenceDetailCard" class="evidence-detail-card">
+        <div id="evidenceDetailIcon" class="evidence-detail-icon">🕯️</div>
+        <div class="evidence-detail-content">
+          <h3 id="evidenceDetailName">Nog geen bewijsstuk geselecteerd</h3>
+          <p id="evidenceDetailDescription">Klik op een bewijsstuk om meer informatie te bekijken.</p>
+          <p id="evidenceDetailStatus" class="small-note">Status: onbekend spoor</p>
+        </div>
+      </div>
+
+      <div class="button-grid">
+        <button id="closeEvidenceButton" type="button">Sluiten</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="evidenceFoundModal" class="modal hidden">
+    <div class="modal-content evidence-found-content">
+      <h2>Nieuw bewijsmateriaal gevonden</h2>
+      <div id="foundEvidenceIcon" class="evidence-found-icon">🌿</div>
+      <h3 id="foundEvidenceName">Verborgen kruid</h3>
+      <p id="foundEvidenceDescription">Dit voorwerp wordt toegevoegd aan jullie heksendossier.</p>
+      <button id="closeFoundEvidenceButton" type="button">Verder spelen</button>
+    </div>
+  </div>
+
   <div id="messageModal" class="modal hidden">
     <div class="modal-content">
       <h2>Bericht van de leerkracht</h2>
@@ -112,6 +155,6 @@
   </div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script type="module" src="script.js?v=20260325-5"></script>
+  <script type="module" src="script.js?v=20260326-heks-1"></script>
 </body>
 </html>
