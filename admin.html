@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>City Escape Admin</title>
-  <link rel="stylesheet" href="style.css?v=20260326-heks-admin-3">
+  <link rel="stylesheet" href="style.css?v=20260326-heks-admin-5">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 </head>
 <body>
@@ -147,10 +147,57 @@
         <div id="cpCollectibleSection">
           <h3 id="cpCollectibleSectionTitle">Collectible / dossieritem</h3>
           <input id="cpCollectibleName" type="text" placeholder="Naam item, bv. Ritueel mes">
+
           <div class="button-grid">
-            <input id="cpCollectibleIcon" type="text" placeholder="Icoon, bv. 🔪">
-            <input id="cpCollectibleLockedIcon" type="text" placeholder="Verborgen icoon, bv. ❓">
+            <div>
+              <label for="cpCollectibleIcon">Collectible-icoon</label>
+              <select id="cpCollectibleIcon">
+                <option value="">Kies een icoon</option>
+                <option value="🌿">🌿 Heksenkruid</option>
+                <option value="🔪">🔪 Ritueel mes</option>
+                <option value="🕯️">🕯️ Zwarte kaars</option>
+                <option value="📜">📜 Oud perkament</option>
+                <option value="💍">💍 Ring</option>
+                <option value="🧪">🧪 Flesje / elixir</option>
+                <option value="🔮">🔮 Kristallen bol</option>
+                <option value="🪶">🪶 Zwarte veer</option>
+                <option value="🧂">🧂 Beschermingszout</option>
+                <option value="🪨">🪨 Runesteen</option>
+                <option value="🗝️">🗝️ Oude sleutel</option>
+                <option value="📖">📖 Boek der spreuken</option>
+                <option value="⛓️">⛓️ Ketting</option>
+                <option value="🧿">🧿 Beschermingsoog</option>
+                <option value="🏺">🏺 Oude vaas</option>
+                <option value="⚗️">⚗️ Alchemie</option>
+                <option value="🪙">🪙 Oude munt</option>
+                <option value="🦴">🦴 Bot</option>
+                <option value="🕸️">🕸️ Spinnenweb</option>
+                <option value="🪞">🪞 Spiegel</option>
+                <option value="🧫">🧫 Monster</option>
+                <option value="🪬">🪬 Talisman</option>
+                <option value="🧤">🧤 Handschoen</option>
+                <option value="👣">👣 Voetsporen</option>
+                <option value="🩸">🩸 Bloedspoor</option>
+                <option value="🧬">🧬 DNA-spoor</option>
+                <option value="📎">📎 Bewijsklem</option>
+                <option value="🗞️">🗞️ Krantenknipsel</option>
+                <option value="📷">📷 Foto</option>
+                <option value="🧱">🧱 Baksteen / fragment</option>
+              </select>
+            </div>
+
+            <div>
+              <label for="cpCollectibleLockedIcon">Verborgen icoon</label>
+              <select id="cpCollectibleLockedIcon">
+                <option value="❓">❓ Vraagteken</option>
+                <option value="🔒">🔒 Slot</option>
+                <option value="⬛">⬛ Verborgen</option>
+                <option value="🌫️">🌫️ Mist</option>
+                <option value="👁️">👁️ Oog</option>
+              </select>
+            </div>
           </div>
+
           <input id="cpCollectibleLockedName" type="text" placeholder="Verborgen naam, bv. Onbekend spoor">
           <textarea id="cpCollectibleDescription" placeholder="Beschrijving van het item"></textarea>
         </div>
@@ -233,6 +280,6 @@
   </div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script type="module" src="admin.js?v=20260326-heks-admin-4"></script>
+  <script type="module" src="admin.js?v=20260326-heks-admin-5"></script>
 </body>
 </html>
