@@ -8,17 +8,6 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 </head>
 <body>
-  <div id="introOverlay" class="intro-overlay">
-  <div class="intro-box">
-    <h1 id="introTitle">🧙‍♀️ Heksenjacht</h1>
-    <p id="introText">
-      Eeuwenlang leefden heksen verborgen tussen de mensen...
-      <br><br>
-      Jullie missie: verzamel de verborgen artefacten en ontdek de waarheid.
-    </p>
-    <button onclick="startGame()">Start spel</button>
-  </div>
-</div>
   <div class="container">
     <h1 id="appTitle">City Escape</h1>
 
@@ -164,6 +153,18 @@
       <button id="closeMessageButton">Sluiten</button>
     </div>
   </div>
+
+  <div id="gameIntroModal" class="intro-overlay hidden">
+  <div class="intro-box">
+    <h1 id="gameIntroTitle">🧙‍♀️ Heksenjacht</h1>
+    <p id="gameIntroText">
+      Eeuwenlang leefden heksen verborgen tussen de mensen.
+      <br><br>
+      Verzamel de verborgen voorwerpen en ontdek welk geheim hier werd achtergelaten.
+    </p>
+    <button id="closeGameIntroButton">Verder gaan</button>
+  </div>
+</div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script type="module" src="script.js?v=20260326-heks-1"></script>
