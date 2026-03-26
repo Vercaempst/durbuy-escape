@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Begeleidersdashboard</title>
-  <link rel="stylesheet" href="style.css?v=20260326-heks-teacher-1">
+  <link rel="stylesheet" href="style.css?v=20260326-teacher-fix-1">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 </head>
 <body>
@@ -49,7 +49,7 @@
         <input id="broadcastMessageInput" type="text" placeholder="Typ een bericht voor alle groepen">
         <button id="sendBroadcastButton">Stuur bericht naar alle groepen</button>
 
-        <button id="resetDatabaseButton">Reset databases</button>
+        <button id="resetDatabaseButton">Reset database</button>
         <p id="globalActionFeedback"></p>
       </div>
 
@@ -58,7 +58,7 @@
         <div id="rankingContainer"></div>
       </div>
 
-      <div id="map"></div>
+      <div id="map" style="height: 420px;"></div>
 
       <div class="card">
         <div class="button-grid">
@@ -79,6 +79,6 @@
   </div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script type="module" src="teacher.js?v=20260326-heks-teacher-1"></script>
+  <script type="module" src="teacher.js?v=20260326-teacher-fix-1"></script>
 </body>
 </html>
