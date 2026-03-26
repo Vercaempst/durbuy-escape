@@ -595,6 +595,108 @@ function closeFoundEvidenceModal() {
   byId("evidenceFoundModal")?.classList.add("hidden");
 }
 
+function getIntroContentForGameType() {
+  const engine = currentGameType?.engine || "classic";
+  const layerName =
+    currentGameType?.engineConfig?.inventoryName ||
+    currentGameType?.engineConfig?.bookName ||
+    "dossier";
+
+  if (engine === "collectibles") {
+    return {
+      title: "🧙‍♀️ Heksenjacht",
+      symbol: "🜃",
+      text:
+        "Eeuwenlang leefden heksen verborgen tussen de mensen.\n\n" +
+        "Verspreid over de omgeving liggen nog steeds voorwerpen die ooit deel uitmaakten van hun rituelen.\n\n" +
+        `Verzamel de verborgen sporen en vul jullie ${layerName.toLowerCase()} aan.`
+    };
+  }
+
+  if (engine === "murder") {
+    return {
+      title: "🕵️ Moordonderzoek",
+      symbol: "🩸",
+      text:
+        "Er is iets gebeurd dat niet zomaar kan worden uitgelegd.\n\n" +
+        "Verzamel bewijzen, onderzoek getuigenissen en onderscheid echte sporen van valse aanwijzingen.\n\n" +
+        `Alles wat jullie vinden komt terecht in jullie ${layerName.toLowerCase()}.`
+    };
+  }
+
+  if (engine === "mole") {
+    return {
+      title: "🎭 De Mol",
+      symbol: "👁️",
+      text:
+        "Niet iedereen speelt dit spel met dezelfde bedoeling.\n\n" +
+        "Werk samen, los opdrachten op en blijf alert voor sabotage.\n\n" +
+        "Iemand probeert misschien ongemerkt alles te verstoren."
+    };
+  }
+
+  if (engine === "hunters") {
+    return {
+      title: "🏹 Jagers",
+      symbol: "🎯",
+      text:
+        "In dit spel wisselen jager en prooi elkaar af.\n\n" +
+        "Blijf bewegen, lees de kaart slim en wees klaar om van rol te veranderen zodra het spel kantelt."
+    };
+  }
+
+  return {
+    title: "🗺️ City Game",
+    symbol: "✨",
+    text:
+      "Jullie staan aan het begin van een nieuw avontuur.\n\n" +
+      "Volg de aanwijzingen, los opdrachten op en ontdek wat deze stad voor jullie verborgen houdt."
+  };
+}
+
+function typeWriterText(element, text, speed = 16) {
+  if (!element) return;
+  element.innerText = "";
+  let index = 0;
+
+  if (element._typeTimer) {
+    clearInterval(element._typeTimer);
+  }
+
+  element._typeTimer = setInterval(() => {
+    element.innerText = text.slice(0, index);
+    index++;
+
+    if (index > text.length) {
+      clearInterval(element._typeTimer);
+      element._typeTimer = null;
+    }
+  }, speed);
+}
+
+function showGameIntro() {
+  const modal = byId("gameIntroModal");
+  const title = byId("gameIntroTitle");
+  const text = byId("gameIntroText");
+  const symbol = document.querySelector(".intro-symbol");
+
+  if (!modal) return;
+
+  const intro = getIntroContentForGameType();
+
+  if (title) title.innerText = intro.title;
+  if (symbol) symbol.innerText = intro.symbol || "✨";
+
+  modal.style.display = "flex";
+  typeWriterText(text, intro.text, 16);
+}
+
+function closeGameIntro() {
+  const modal = byId("gameIntroModal");
+  if (!modal) return;
+  modal.style.display = "none";
+}
+
 function showGameIntro() {
   const modal = byId("gameIntroModal");
   if (!modal) return;
