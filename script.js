@@ -122,6 +122,10 @@ let collectibleIcon = L.divIcon({
   popupAnchor: [0, -26]
 });
 
+function startGame() {
+  document.getElementById("introOverlay").style.display = "none";
+}
+
 function byId(id) {
   return document.getElementById(id);
 }
