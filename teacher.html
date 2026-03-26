@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Begeleidersdashboard</title>
-  <link rel="stylesheet" href="style.css?v=20260325-2">
+  <link rel="stylesheet" href="style.css?v=20260326-heks-teacher-1">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 </head>
 <body>
@@ -61,22 +61,24 @@
       <div id="map"></div>
 
       <div class="card">
-        <button id="showAllGroupsButton">Toon opnieuw alle groepen</button>
-      </div>
+        <div class="button-grid">
+          <button id="showAllGroupsButton">Toon alle groepen</button>
+        </div>
 
-      <div class="card">
         <h2>Groepsdetail</h2>
         <div id="groupDetailContainer">
-          <p>Klik op een groep om de volledige route en detailinfo te zien.</p>
+          <p>Klik op een groep op de kaart of in het overzicht om details te bekijken.</p>
         </div>
       </div>
 
-      <h2>Groepen</h2>
-      <div id="groupsContainer"></div>
+      <div class="card">
+        <h2>Actieve groepen</h2>
+        <div id="groupsContainer"></div>
+      </div>
     </div>
   </div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script type="module" src="teacher.js?v=20260325-3"></script>
+  <script type="module" src="teacher.js?v=20260326-heks-teacher-1"></script>
 </body>
 </html>
