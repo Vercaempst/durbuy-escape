@@ -24,7 +24,7 @@ const auth = getAuth(app);
 let groupsCache = {};
 let citiesCache = {};
 let currentCity = null;
-let map;
+let map = null;
 let markers = {};
 let initialized = false;
 
@@ -36,10 +36,9 @@ function login() {
   const email = byId("email")?.value || "";
   const password = byId("password")?.value || "";
 
-  signInWithEmailAndPassword(auth, email, password)
-    .catch((error) => {
-      alert("Login mislukt: " + error.message);
-    });
+  signInWithEmailAndPassword(auth, email, password).catch((error) => {
+    alert("Login mislukt: " + error.message);
+  });
 }
 
 function logout() {
@@ -52,18 +51,26 @@ window.login = login;
 window.logout = logout;
 
 onAuthStateChanged(auth, (user) => {
+  const loginScreen = byId("loginScreen");
+  const appContent = byId("appContent");
+  const loginStatus = byId("loginStatus");
+
   if (user) {
-    byId("loginScreen").style.display = "none";
-    byId("appContent").style.display = "block";
-    byId("loginStatus").innerText = "Ingelogd als: " + user.email;
+    if (loginScreen) loginScreen.style.display = "none";
+    if (appContent) appContent.style.display = "block";
+    if (loginStatus) loginStatus.innerText = "Ingelogd als: " + user.email;
 
     if (!initialized) {
       initialized = true;
       init();
     }
+
+    setTimeout(() => {
+      if (map) map.invalidateSize();
+    }, 250);
   } else {
-    byId("loginScreen").style.display = "block";
-    byId("appContent").style.display = "none";
+    if (loginScreen) loginScreen.style.display = "block";
+    if (appContent) appContent.style.display = "none";
   }
 });
 
@@ -88,24 +95,15 @@ function populateCitySelector() {
   Object.keys(citiesCache)
     .sort((a, b) => a.localeCompare(b))
     .forEach((key) => {
-      const opt = document.createElement("option");
-      opt.value = key;
-      opt.textContent = citiesCache[key]?.name || key;
-      select.appendChild(opt);
+      const option = document.createElement("option");
+      option.value = key;
+      option.textContent = citiesCache[key]?.name || key;
+      select.appendChild(option);
     });
 
   if (currentCity && citiesCache[currentCity]) {
     select.value = currentCity;
   }
-}
-
-function clearMarkers() {
-  Object.values(markers).forEach((marker) => {
-    if (map && marker) {
-      map.removeLayer(marker);
-    }
-  });
-  markers = {};
 }
 
 function updateMarkers() {
@@ -114,13 +112,13 @@ function updateMarkers() {
   const activeIds = new Set();
 
   Object.entries(groupsCache).forEach(([id, g]) => {
-    if (!g.lat || !g.lng || g.cityKey !== currentCity) return;
+    if (!g || g.cityKey !== currentCity || !g.lat || !g.lng) return;
+
     activeIds.add(id);
 
     if (!markers[id]) {
-      markers[id] = L.marker([g.lat, g.lng])
-        .addTo(map)
-        .on("click", () => showGroupDetail(id, g));
+      markers[id] = L.marker([g.lat, g.lng]).addTo(map);
+      markers[id].on("click", () => showGroupDetail(id));
     } else {
       markers[id].setLatLng([g.lat, g.lng]);
     }
@@ -139,7 +137,7 @@ function renderRanking() {
   if (!container) return;
 
   const groups = Object.values(groupsCache)
-    .filter(g => g.cityKey === currentCity)
+    .filter((g) => g.cityKey === currentCity)
     .sort((a, b) => (b.score || 0) - (a.score || 0));
 
   container.innerHTML = "";
@@ -150,20 +148,13 @@ function renderRanking() {
   }
 
   groups.forEach((g, i) => {
-    const div = document.createElement("div");
-    div.className = "rank-item";
-
-    let rightText = `${g.score || 0} punten`;
-    if (g.evidenceCount !== undefined) {
-      rightText += ` | 🧾 ${g.evidenceCount || 0}`;
-    }
-
-    div.innerHTML = `
+    const row = document.createElement("div");
+    row.className = "rank-item";
+    row.innerHTML = `
       <span>${i + 1}. Groep ${g.groupNumber}: ${g.groupName}</span>
-      <span>${rightText}</span>
+      <span>${g.score || 0} punten | 🧾 ${g.evidenceCount || 0}</span>
     `;
-
-    container.appendChild(div);
+    container.appendChild(row);
   });
 }
 
@@ -183,14 +174,13 @@ function renderGroups() {
   }
 
   groups.forEach(([id, g]) => {
-    const div = document.createElement("div");
-    div.className = "group-card";
-
     let status = "Bezig";
     if (g.finished) status = "Afgerond";
     else if (g.gatherMode) status = "Verzamelpunt";
 
-    div.innerHTML = `
+    const card = document.createElement("div");
+    card.className = "group-card";
+    card.innerHTML = `
       <h3>Groep ${g.groupNumber}: ${g.groupName}</h3>
       <p><strong>Leden:</strong> ${g.groupMembers || "-"}</p>
       <p><strong>Status:</strong> ${status}</p>
@@ -209,34 +199,32 @@ function renderGroups() {
       </div>
     `;
 
-    container.appendChild(div);
+    container.appendChild(card);
   });
 
   container.querySelectorAll("[data-view]").forEach((btn) => {
-    btn.onclick = () => {
-      const id = btn.getAttribute("data-view");
-      showGroupDetail(id, groupsCache[id]);
-    };
+    btn.addEventListener("click", () => showGroupDetail(btn.getAttribute("data-view")));
   });
 
   container.querySelectorAll("[data-next]").forEach((btn) => {
-    btn.onclick = () => nextGroup(btn.getAttribute("data-next"));
+    btn.addEventListener("click", () => nextGroup(btn.getAttribute("data-next")));
   });
 
   container.querySelectorAll("[data-points]").forEach((btn) => {
-    btn.onclick = () => addPoints(btn.getAttribute("data-points"));
+    btn.addEventListener("click", () => addPoints(btn.getAttribute("data-points")));
   });
 
   container.querySelectorAll("[data-message]").forEach((btn) => {
-    btn.onclick = () => sendMessageToGroup(btn.getAttribute("data-message"));
+    btn.addEventListener("click", () => sendMessageToGroup(btn.getAttribute("data-message")));
   });
 
   container.querySelectorAll("[data-reset]").forEach((btn) => {
-    btn.onclick = () => resetGroup(btn.getAttribute("data-reset"));
+    btn.addEventListener("click", () => resetGroup(btn.getAttribute("data-reset")));
   });
 }
 
-function showGroupDetail(id, g) {
+function showGroupDetail(groupId) {
+  const g = groupsCache[groupId];
   const container = byId("groupDetailContainer");
   if (!container || !g) return;
 
@@ -288,8 +276,8 @@ async function sendMessageToGroup(groupId) {
 }
 
 async function resetGroup(groupId) {
-  const confirmReset = confirm("Reset deze groep?");
-  if (!confirmReset) return;
+  const ok = confirm("Reset deze groep?");
+  if (!ok) return;
 
   await update(ref(db, "groups/" + groupId), {
     commandResetAt: Date.now()
@@ -330,8 +318,8 @@ async function broadcastMessage() {
 }
 
 async function resetDatabase() {
-  const confirmReset = confirm("Zeker dat je alle groepen wilt resetten?");
-  if (!confirmReset) return;
+  const ok = confirm("Zeker dat je alle groepen wilt resetten?");
+  if (!ok) return;
 
   await set(ref(db, "control/globalReset"), {
     at: Date.now()
@@ -341,16 +329,58 @@ async function resetDatabase() {
   byId("globalActionFeedback").innerText = "Reset uitgevoerd.";
 }
 
+function setupSearch() {
+  const input = byId("searchInput");
+  const result = byId("searchResult");
+  if (!input || !result) return;
+
+  input.addEventListener("input", () => {
+    const query = input.value.trim().toLowerCase();
+
+    if (!query) {
+      result.innerHTML = "";
+      return;
+    }
+
+    const matches = Object.entries(groupsCache).filter(([_, g]) => {
+      if (g.cityKey !== currentCity) return false;
+      const haystack = `${g.groupName || ""} ${g.groupMembers || ""}`.toLowerCase();
+      return haystack.includes(query);
+    });
+
+    if (!matches.length) {
+      result.innerHTML = "<p>Geen resultaten.</p>";
+      return;
+    }
+
+    result.innerHTML = matches.map(([id, g]) => `
+      <div class="search-result-card">
+        <strong>Groep ${g.groupNumber}: ${g.groupName}</strong><br>
+        ${g.groupMembers || "-"}<br>
+        <button onclick="window.__openGroupFromSearch('${id}')">Bekijk</button>
+      </div>
+    `).join("");
+  });
+
+  window.__openGroupFromSearch = (id) => {
+    showGroupDetail(id);
+  };
+}
+
 function init() {
   initMap();
+  setupSearch();
 
   onValue(ref(db, "cities"), (snapshot) => {
     citiesCache = snapshot.val() || {};
     populateCitySelector();
+    if (currentCity) {
+      byId("currentCityInfo").innerText = "Actieve stad: " + (citiesCache[currentCity]?.name || currentCity);
+    }
   });
 
-  onValue(ref(db, "control/currentCity"), (snap) => {
-    currentCity = snap.val();
+  onValue(ref(db, "control/currentCity"), (snapshot) => {
+    currentCity = snapshot.val();
     byId("currentCityInfo").innerText = "Actieve stad: " + (citiesCache[currentCity]?.name || currentCity || "-");
 
     const select = byId("citySelector");
@@ -365,71 +395,34 @@ function init() {
 
   onValue(ref(db, "groups"), (snapshot) => {
     groupsCache = snapshot.val() || {};
-    updateMarkers();
     renderRanking();
     renderGroups();
+    updateMarkers();
   });
 
-  byId("setCityButton").onclick = async () => {
-    const val = byId("citySelector").value;
-    if (!val) return;
-    await set(ref(db, "control/currentCity"), val);
-  };
+  byId("setCityButton").addEventListener("click", async () => {
+    const value = byId("citySelector")?.value || "";
+    if (!value) return;
+    await set(ref(db, "control/currentCity"), value);
+  });
 
-  byId("sendGatherButton").onclick = sendAllToGather;
-  byId("resumeGameButton").onclick = resumeGame;
-  byId("sendBroadcastButton").onclick = broadcastMessage;
-  byId("resetDatabaseButton").onclick = resetDatabase;
+  byId("sendGatherButton").addEventListener("click", sendAllToGather);
+  byId("resumeGameButton").addEventListener("click", resumeGame);
+  byId("sendBroadcastButton").addEventListener("click", broadcastMessage);
+  byId("resetDatabaseButton").addEventListener("click", resetDatabase);
 
-  byId("showAllGroupsButton").onclick = () => {
-    const entries = Object.entries(groupsCache).filter(([_, g]) => g.cityKey === currentCity);
-    if (!entries.length) return;
+  byId("showAllGroupsButton").addEventListener("click", () => {
+    if (!map) return;
 
     const bounds = [];
-    entries.forEach(([_, g]) => {
-      if (g.lat && g.lng) bounds.push([g.lat, g.lng]);
+    Object.values(groupsCache).forEach((g) => {
+      if (g.cityKey === currentCity && g.lat && g.lng) {
+        bounds.push([g.lat, g.lng]);
+      }
     });
 
-    if (bounds.length && map) {
+    if (bounds.length) {
       map.fitBounds(bounds, { padding: [30, 30] });
     }
-  };
-
-  const searchInput = byId("searchInput");
-  if (searchInput) {
-    searchInput.addEventListener("input", () => {
-      const query = searchInput.value.trim().toLowerCase();
-      const result = byId("searchResult");
-      if (!result) return;
-
-      if (!query) {
-        result.innerHTML = "";
-        return;
-      }
-
-      const matches = Object.entries(groupsCache).filter(([_, g]) => {
-        const haystack = `${g.groupName || ""} ${g.groupMembers || ""}`.toLowerCase();
-        return g.cityKey === currentCity && haystack.includes(query);
-      });
-
-      if (!matches.length) {
-        result.innerHTML = "<p>Geen resultaten.</p>";
-        return;
-      }
-
-      result.innerHTML = matches.map(([id, g]) => `
-        <div class="search-result-card">
-          <strong>Groep ${g.groupNumber}: ${g.groupName}</strong><br>
-          ${g.groupMembers || "-"}<br>
-          <button onclick="window.__openGroupFromSearch('${id}')">Bekijk</button>
-        </div>
-      `).join("");
-    });
-  }
-
-  window.__openGroupFromSearch = (id) => {
-    if (groupsCache[id]) {
-      showGroupDetail(id, groupsCache[id]);
-    }
-  };
+  });
 }
