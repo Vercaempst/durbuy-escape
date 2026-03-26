@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>City Escape Admin</title>
-  <link rel="stylesheet" href="style.css?v=20260325-7">
+  <link rel="stylesheet" href="style.css?v=20260326-heks-admin-3">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 </head>
 <body>
@@ -26,6 +26,7 @@
         <div class="button-grid">
           <button onclick="logout()">Logout</button>
           <button type="button" onclick="window.location.href='themes.html'">Open themabeheer</button>
+          <button type="button" onclick="window.location.href='speltypes.html'">Open speltypes</button>
         </div>
       </div>
 
@@ -63,6 +64,12 @@
           Beheer of maak thema’s aan via de aparte pagina themabeheer.
         </p>
 
+        <h3>Gekoppeld speltype</h3>
+        <select id="cityGameTypeSelector"></select>
+        <p class="small-note">
+          Kies welk speltype deze stad gebruikt. Beheer of maak speltypes aan via de aparte pagina speltypes.
+        </p>
+
         <div class="button-grid">
           <button id="saveCityButton">Bewaar stad in Firebase</button>
           <button id="deleteCityButton">Verwijder stad uit Firebase</button>
@@ -89,71 +96,143 @@
           <option value="text">Tekstvraag</option>
           <option value="riddle">Raadsel</option>
           <option value="multipleChoice">Meerkeuze</option>
-          <option value="matching">Matching</option>
+          <option value="matching">Koppelen</option>
           <option value="imagePuzzle">Afbeeldingspuzzel</option>
           <option value="photo">Foto-opdracht</option>
         </select>
 
-        <textarea id="cpStory" placeholder="Verhaaltekst of intro voor dit checkpoint"></textarea>
-        <input id="cpVideo" type="text" placeholder="Videolink (YouTube/Vimeo/embed)">
-        <input id="cpAudio" type="text" placeholder="Audiolink">
-        <input id="cpCheckpointImage" type="text" placeholder="Extra afbeelding voor checkpoint">
-
-        <textarea id="cpQuestion" placeholder="Vraag of opdracht"></textarea>
-
-        <div id="textTaskFields">
-          <input id="cpAnswers" type="text" placeholder="Antwoorden, gescheiden door komma's">
+        <div id="cpStoryBlock">
+          <textarea id="cpStory" placeholder="Verhaaltekst / sfeer bij checkpoint"></textarea>
         </div>
 
-        <div id="multipleChoiceFields" style="display:none;">
-          <textarea id="cpOptions" placeholder="Meerkeuze-opties, 1 per lijn"></textarea>
-          <input id="cpCorrectOption" type="number" min="0" placeholder="Index correct antwoord, start bij 0">
+        <textarea id="cpQuestion" placeholder="Vraag / opdracht"></textarea>
+
+        <div id="cpTextAnswersWrapper">
+          <textarea id="cpAnswers" placeholder="Juiste antwoorden, gescheiden door komma's"></textarea>
         </div>
 
-        <div id="matchingFields" style="display:none;">
-          <textarea id="cpLeftItems" placeholder="Linker kolom, 1 per lijn"></textarea>
-          <textarea id="cpRightItems" placeholder="Rechter kolom, 1 per lijn"></textarea>
-          <textarea id="cpCorrectPairs" placeholder="Correcte koppels, 1 per lijn, bv. Brug=Over de rivier"></textarea>
+        <div id="cpMultipleChoiceWrapper" class="hidden">
+          <textarea id="cpOptions" placeholder="Antwoordopties, gescheiden door komma's"></textarea>
+          <input id="cpCorrectOption" type="number" min="0" placeholder="Index juiste optie (start bij 0)">
         </div>
 
-        <div id="imagePuzzleFields" style="display:none;">
-          <input id="cpImageUrl" type="text" placeholder="Afbeelding URL of pad, bv. images/brug.jpg">
-          <input id="cpGridSize" type="number" min="2" placeholder="Grid size, bv. 3">
+        <div id="cpMatchingWrapper" class="hidden">
+          <textarea id="cpLeftItems" placeholder="Linker kolom, gescheiden door komma's"></textarea>
+          <textarea id="cpRightItems" placeholder="Rechter kolom, gescheiden door komma's"></textarea>
+          <textarea id="cpCorrectPairs" placeholder="Correcte koppels, bv: Brug=Over de rivier, Fontein=Water in het midden"></textarea>
         </div>
 
-        <div id="photoFields" style="display:none;">
+        <div id="cpImagePuzzleWrapper" class="hidden">
+          <input id="cpImageUrl" type="text" placeholder="Afbeelding URL voor puzzel">
+          <input id="cpGridSize" type="number" min="2" max="6" placeholder="Grid size, bv. 3">
+        </div>
+
+        <div id="cpPhotoWrapper" class="hidden">
           <p class="small-note">
-            Bij foto-opdrachten volstaat de opdrachttekst. De effectieve upload gebeurt in de leerlingweergave.
+            Foto-opdrachten gebruiken de vraagtekst hierboven. Leerlingen uploaden hun foto via het spel.
           </p>
         </div>
 
+        <h3>Media</h3>
+        <input id="cpVideo" type="text" placeholder="Video URL (YouTube, Vimeo of embed)">
+        <input id="cpAudio" type="text" placeholder="Audio URL">
+        <input id="cpImage" type="text" placeholder="Afbeelding URL">
+
+        <h3>Punten</h3>
         <div class="button-grid">
           <input id="cpPointsCorrect" type="number" placeholder="Punten bij juist antwoord">
-          <input id="cpPointsAfterMaxTries" type="number" placeholder="Punten na 3 pogingen">
+          <input id="cpPointsAfterMaxTries" type="number" placeholder="Punten na max tries">
+        </div>
+
+        <div id="cpCollectibleSection">
+          <h3 id="cpCollectibleSectionTitle">Collectible / dossieritem</h3>
+          <input id="cpCollectibleName" type="text" placeholder="Naam item, bv. Ritueel mes">
+          <div class="button-grid">
+            <input id="cpCollectibleIcon" type="text" placeholder="Icoon, bv. 🔪">
+            <input id="cpCollectibleLockedIcon" type="text" placeholder="Verborgen icoon, bv. ❓">
+          </div>
+          <input id="cpCollectibleLockedName" type="text" placeholder="Verborgen naam, bv. Onbekend spoor">
+          <textarea id="cpCollectibleDescription" placeholder="Beschrijving van het item"></textarea>
+        </div>
+
+        <div id="cpCollectibleAdvancedSection">
+          <h3>Collectible zoekinstellingen</h3>
+          <p class="small-note">
+            Handig voor speltypes met verborgen objecten, zoekzones of pas-zichtbaar-dichtbij.
+          </p>
+
+          <label class="small-note">
+            Aparte locatie voor collectible. Laat leeg om checkpointlocatie te gebruiken.
+          </label>
+
+          <div class="button-grid">
+            <input id="cpCollectibleLat" type="number" step="any" placeholder="Collectible latitude">
+            <input id="cpCollectibleLng" type="number" step="any" placeholder="Collectible longitude">
+          </div>
+
+          <div class="button-grid">
+            <input id="cpCollectibleSearchRadius" type="number" placeholder="Zoekradius, bv. 30">
+            <input id="cpCollectibleRevealDistance" type="number" placeholder="Reveal distance, bv. 15">
+          </div>
+        </div>
+
+        <div id="cpMurderSection" class="hidden">
+          <h3>Moordonderzoek</h3>
+
+          <input id="cpSuspectName" type="text" placeholder="Naam verdachte / betrokken persoon">
+          <textarea id="cpDialogText" placeholder="Fictieve dialoog of getuigenis"></textarea>
+
+          <div class="checkbox-grid">
+            <label><input id="cpHasFingerprint" type="checkbox"> Voorwerp heeft afdruk</label>
+            <label><input id="cpIsFakeClue" type="checkbox"> Dit is een vals spoor</label>
+            <label><input id="cpEvidenceIsCritical" type="checkbox"> Dit bewijs is cruciaal voor finale</label>
+          </div>
+
+          <input id="cpFingerprintLabel" type="text" placeholder="Naam afdruk / spoor, bv. Afdruk A">
+        </div>
+
+        <div id="cpMoleSection" class="hidden">
+          <h3>De mol</h3>
+
+          <textarea id="cpSabotageHint" placeholder="Beschrijving van mogelijke sabotage of geheime actie"></textarea>
+
+          <div class="checkbox-grid">
+            <label><input id="cpCanTriggerSabotage" type="checkbox"> Checkpoint kan sabotage triggeren</label>
+            <label><input id="cpSecretObjective" type="checkbox"> Checkpoint bevat geheime opdracht</label>
+          </div>
+
+          <input id="cpSecretObjectiveText" type="text" placeholder="Geheime opdracht / doel">
+        </div>
+
+        <div id="cpHuntersSection" class="hidden">
+          <h3>Jagers</h3>
+
+          <div class="checkbox-grid">
+            <label><input id="cpCanSwitchRoles" type="checkbox"> Dit checkpoint kan rollen wisselen</label>
+            <label><input id="cpCanTriggerChase" type="checkbox"> Dit checkpoint kan jachtfase starten</label>
+          </div>
+
+          <input id="cpRoleSwitchValue" type="number" placeholder="Waarde / drempel voor rolwissel">
+          <input id="cpChaseRadius" type="number" placeholder="Jachtradius, bv. 20">
         </div>
 
         <div class="button-grid">
-          <button id="newCheckpointButton">Nieuw checkpoint</button>
-          <button id="saveCheckpointButton">Opslaan in lijst</button>
+          <button id="addCheckpointButton">Nieuw checkpoint toevoegen</button>
+          <button id="updateCheckpointButton">Geselecteerd checkpoint bijwerken</button>
+          <button id="deleteCheckpointButton">Geselecteerd checkpoint verwijderen</button>
         </div>
 
-        <div class="button-grid">
-          <button id="deleteCheckpointButton">Verwijder geselecteerd checkpoint</button>
-          <button id="saveAllButton">Bewaar alle checkpoints in Firebase</button>
-        </div>
-
-        <p class="small-note">Klik op de kaart om latitude en longitude automatisch in te vullen.</p>
-        <p id="adminFeedback"></p>
+        <p id="cpEditorStatus"></p>
       </div>
 
       <div class="card">
-        <h2>Checkpointlijst</h2>
+        <h2>Checkpoints in deze stad</h2>
         <div id="checkpointList"></div>
       </div>
     </div>
   </div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script type="module" src="admin.js?v=20260325-7"></script>
+  <script type="module" src="admin.js?v=20260326-heks-admin-4"></script>
 </body>
 </html>
