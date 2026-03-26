@@ -15,12 +15,15 @@ const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 
 let citiesCache = {};
+let currentGameType = null;
 
 let map;
 let playerMarker;
 let checkpointMarker;
 let checkpointCircle;
 let routeLine;
+let searchZoneCircle = null;
+let collectibleMarker = null;
 let questionOpen = false;
 
 let route = [];
@@ -58,6 +61,8 @@ let lastProcessedLng = null;
 let currentTheme = null;
 let themeAudio = null;
 
+let activeCollectibleSearch = null;
+
 const GPS_MIN_DISTANCE_METERS = 4;
 const GPS_MIN_UPDATE_MS = 1200;
 const LOCATION_SMOOTHING = 0.25;
@@ -80,7 +85,9 @@ let gameState = {
   lastProcessedHardResetAt: 0,
   lastProcessedMessageAt: 0,
   lastProcessedBroadcastAt: 0,
-  sessionStartedAt: 0
+  sessionStartedAt: 0,
+  collectedEvidence: {},
+  selectedEvidenceId: ""
 };
 
 let playerIcon = L.divIcon({
@@ -102,6 +109,14 @@ let checkpointIcon = L.divIcon({
 let gatherIcon = L.divIcon({
   className: "custom-emoji-icon",
   html: `<div style="font-size:30px; line-height:30px;">⭐</div>`,
+  iconSize: [30, 30],
+  iconAnchor: [15, 30],
+  popupAnchor: [0, -26]
+});
+
+let collectibleIcon = L.divIcon({
+  className: "custom-emoji-icon",
+  html: `<div style="font-size:30px; line-height:30px;">✨</div>`,
   iconSize: [30, 30],
   iconAnchor: [15, 30],
   popupAnchor: [0, -26]
@@ -171,6 +186,144 @@ function normalizeVideoUrl(url) {
   }
 }
 
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function slugify(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "") || "item";
+}
+
+function normalizeGameType(raw) {
+  return {
+    name: raw?.name || "Klassiek",
+    description: raw?.description || "",
+    engine: raw?.engine || "classic",
+    modules: {
+      questions: raw?.modules?.questions ?? true,
+      story: raw?.modules?.story ?? false,
+      inventory: raw?.modules?.inventory ?? false,
+      collectibles: raw?.modules?.collectibles ?? false,
+      searchZones: raw?.modules?.searchZones ?? false,
+      hiddenReveal: raw?.modules?.hiddenReveal ?? false,
+      clickableItems: raw?.modules?.clickableItems ?? false,
+      dialogs: raw?.modules?.dialogs ?? false,
+      evidenceBook: raw?.modules?.evidenceBook ?? false,
+      fingerprints: raw?.modules?.fingerprints ?? false,
+      fakeClues: raw?.modules?.fakeClues ?? false,
+      secretRoles: raw?.modules?.secretRoles ?? false,
+      sabotage: raw?.modules?.sabotage ?? false,
+      roleSwitch: raw?.modules?.roleSwitch ?? false,
+      chase: raw?.modules?.chase ?? false,
+      score: raw?.modules?.score ?? true,
+      ranking: raw?.modules?.ranking ?? true,
+      teacherControls: raw?.modules?.teacherControls ?? true
+    },
+    settings: {
+      checkpointFlow: raw?.settings?.checkpointFlow || "rotatingRoute",
+      collectibleUnlock: raw?.settings?.collectibleUnlock || "none",
+      mapVisibility: raw?.settings?.mapVisibility || "none",
+      finalObjective: raw?.settings?.finalObjective || "gatherPoint",
+      searchRadius: Number(raw?.settings?.searchRadius || 30),
+      revealDistance: Number(raw?.settings?.revealDistance || 15),
+      maxTries: Number(raw?.settings?.maxTries || 3),
+      scoreMode: raw?.settings?.scoreMode || "normal"
+    },
+    engineConfig: raw?.engineConfig || {}
+  };
+}
+
+function hasModule(moduleName) {
+  return !!currentGameType?.modules?.[moduleName];
+}
+
+function getInventoryLabel() {
+  if (!currentGameType) return "Dossier";
+
+  if (currentGameType.engine === "collectibles") {
+    return currentGameType.engineConfig?.inventoryName || "Dossier";
+  }
+
+  if (currentGameType.engine === "murder") {
+    return currentGameType.engineConfig?.bookName || "Bewijsboek";
+  }
+
+  return currentGameType.engineConfig?.inventoryName || "Dossier";
+}
+
+function shouldUseInventoryUI() {
+  return hasModule("inventory") || hasModule("evidenceBook") || hasModule("collectibles");
+}
+
+function updateInventoryTexts() {
+  const label = getInventoryLabel();
+  const openButton = byId("openEvidenceButton");
+  const modalTitle = byId("evidenceModal")?.querySelector("h2");
+  const intro = byId("evidenceIntroText");
+
+  if (openButton) {
+    openButton.innerText = `📂 Open ${label.toLowerCase()}`;
+  }
+
+  if (modalTitle) {
+    modalTitle.innerText = label;
+  }
+
+  if (intro) {
+    if (currentGameType?.engine === "collectibles") {
+      intro.innerText = `Verzamel verborgen voorwerpen en vul jullie ${label.toLowerCase()} aan.`;
+    } else if (currentGameType?.engine === "murder") {
+      intro.innerText = `Alle verzamelde bewijzen verschijnen in jullie ${label.toLowerCase()}.`;
+    } else {
+      intro.innerText = `Hier zie je de verzamelde items in jullie ${label.toLowerCase()}.`;
+    }
+  }
+}
+
+function applyGameTypeUI() {
+  updateInventoryTexts();
+
+  const showInventory = shouldUseInventoryUI();
+  const openButton = byId("openEvidenceButton");
+  const quickBar = byId("evidenceQuickBar");
+  const rankingCard = byId("studentRankingContainer")?.closest(".card");
+
+  if (openButton) {
+    openButton.style.display = showInventory ? "" : "none";
+  }
+
+  if (quickBar) {
+    quickBar.classList.toggle("hidden", !showInventory);
+  }
+
+  if (rankingCard) {
+    rankingCard.classList.toggle("hidden", !hasModule("ranking"));
+  }
+}
+
+function buildExtendedStory(cp) {
+  const parts = [];
+
+  if (hasModule("story") && cp.story && String(cp.story).trim()) {
+    parts.push(String(cp.story).trim());
+  }
+
+  if ((currentGameType?.engine === "murder" || hasModule("dialogs")) && cp.dialogText && String(cp.dialogText).trim()) {
+    parts.push("Getuigenis: " + String(cp.dialogText).trim());
+  }
+
+  return parts.join("\n\n");
+}
+
 function resetCheckpointMedia() {
   const storyEl = byId("modalStory");
   const videoEl = byId("modalVideo");
@@ -199,8 +352,9 @@ function renderCheckpointMedia(cp) {
 
   resetCheckpointMedia();
 
-  if (storyEl && cp.story && String(cp.story).trim()) {
-    storyEl.innerText = String(cp.story).trim();
+  const fullStory = buildExtendedStory(cp);
+  if (storyEl && fullStory) {
+    storyEl.innerText = fullStory;
     showElement(storyEl);
   }
 
@@ -220,6 +374,405 @@ function renderCheckpointMedia(cp) {
     imageEl.alt = cp.name ? `Afbeelding bij ${cp.name}` : "Afbeelding bij checkpoint";
     showElement(imageEl);
   }
+}
+
+function getCheckpointCollectible(cp, index = 0) {
+  if (!cp || !cp.collectible) return null;
+
+  const raw = cp.collectible;
+  const id = slugify(raw.id || raw.name || cp.name || `item_${index + 1}`);
+
+  return {
+    id,
+    name: raw.name || `Item ${index + 1}`,
+    icon: raw.icon || "❓",
+    description: raw.description || "Nieuw object toegevoegd.",
+    lockedName: raw.lockedName || "Onbekend spoor",
+    lockedIcon: raw.lockedIcon || "❓",
+    coords: Array.isArray(cp.collectibleCoords) ? cp.collectibleCoords : cp.coords,
+    searchRadius: Number(cp.collectibleSearchRadius || currentGameType?.settings?.searchRadius || 30),
+    revealDistance: Number(cp.collectibleRevealDistance || currentGameType?.settings?.revealDistance || 15),
+    suspectName: cp.suspectName || "",
+    dialogText: cp.dialogText || "",
+    hasFingerprint: !!cp.hasFingerprint,
+    isFakeClue: !!cp.isFakeClue,
+    evidenceIsCritical: !!cp.evidenceIsCritical,
+    fingerprintLabel: cp.fingerprintLabel || ""
+  };
+}
+
+function getEvidenceCatalog() {
+  const seen = new Set();
+  const catalog = [];
+
+  currentCheckpoints.forEach((cp, index) => {
+    const collectible = getCheckpointCollectible(cp, index);
+    if (!collectible || seen.has(collectible.id)) return;
+    seen.add(collectible.id);
+    catalog.push(collectible);
+  });
+
+  return catalog;
+}
+
+function getCollectedEvidenceMap() {
+  if (!gameState.collectedEvidence || typeof gameState.collectedEvidence !== "object") {
+    gameState.collectedEvidence = {};
+  }
+  return gameState.collectedEvidence;
+}
+
+function hasCollectedEvidence(evidenceId) {
+  return !!getCollectedEvidenceMap()[evidenceId];
+}
+
+function getSelectedEvidenceId() {
+  const catalog = getEvidenceCatalog();
+  if (!catalog.length) return "";
+
+  if (gameState.selectedEvidenceId && catalog.some(item => item.id === gameState.selectedEvidenceId)) {
+    return gameState.selectedEvidenceId;
+  }
+
+  const firstFound = catalog.find(item => hasCollectedEvidence(item.id));
+  return (firstFound || catalog[0]).id;
+}
+
+function renderEvidenceQuickBar() {
+  const quickSlots = byId("evidenceQuickSlots");
+  const quickBar = byId("evidenceQuickBar");
+  if (!quickSlots || !quickBar) return;
+
+  if (!shouldUseInventoryUI()) {
+    quickBar.classList.add("hidden");
+    quickSlots.innerHTML = "";
+    return;
+  }
+
+  const catalog = getEvidenceCatalog();
+  if (!catalog.length) {
+    quickBar.classList.add("hidden");
+    quickSlots.innerHTML = "";
+    return;
+  }
+
+  quickBar.classList.remove("hidden");
+  quickSlots.innerHTML = "";
+
+  catalog.forEach((item) => {
+    const found = hasCollectedEvidence(item.id);
+    const slot = document.createElement("button");
+    slot.type = "button";
+    slot.className = `evidence-slot ${found ? "found" : "locked"}`;
+    slot.innerHTML = `
+      <div class="evidence-slot-icon">${found ? escapeHtml(item.icon) : escapeHtml(item.lockedIcon)}</div>
+      <div class="evidence-slot-name">${found ? escapeHtml(item.name) : escapeHtml(item.lockedName)}</div>
+    `;
+    slot.addEventListener("click", () => {
+      openEvidenceModal(item.id);
+    });
+    quickSlots.appendChild(slot);
+  });
+}
+
+function renderEvidenceDetail(evidenceId) {
+  const detailIcon = byId("evidenceDetailIcon");
+  const detailName = byId("evidenceDetailName");
+  const detailDescription = byId("evidenceDetailDescription");
+  const detailStatus = byId("evidenceDetailStatus");
+  if (!detailIcon || !detailName || !detailDescription || !detailStatus) return;
+
+  const catalog = getEvidenceCatalog();
+  const item = catalog.find(entry => entry.id === evidenceId);
+  if (!item) {
+    detailIcon.innerText = "❓";
+    detailName.innerText = "Nog geen item geselecteerd";
+    detailDescription.innerText = "Klik op een item om meer informatie te bekijken.";
+    detailStatus.innerText = "Status: onbekend";
+    return;
+  }
+
+  const found = hasCollectedEvidence(item.id);
+  detailIcon.innerText = found ? item.icon : item.lockedIcon;
+  detailName.innerText = found ? item.name : item.lockedName;
+
+  if (found) {
+    let desc = item.description || "Nieuw item.";
+    if (currentGameType?.engine === "murder") {
+      const extras = [];
+      if (item.suspectName) extras.push("Verdachte: " + item.suspectName);
+      if (item.hasFingerprint) extras.push("Bevat afdruk" + (item.fingerprintLabel ? ` (${item.fingerprintLabel})` : ""));
+      if (item.isFakeClue) extras.push("Mogelijk vals spoor");
+      if (item.evidenceIsCritical) extras.push("Cruciaal bewijs");
+      if (extras.length) {
+        desc += "\n\n" + extras.join("\n");
+      }
+    }
+    detailDescription.innerText = desc;
+  } else {
+    detailDescription.innerText = "Dit item werd nog niet vrijgespeeld of gevonden.";
+  }
+
+  detailStatus.innerText = found ? "Status: gevonden" : "Status: nog niet gevonden";
+}
+
+function renderEvidenceGrid() {
+  const grid = byId("evidenceGrid");
+  if (!grid) return;
+
+  const catalog = getEvidenceCatalog();
+  const selectedId = getSelectedEvidenceId();
+  grid.innerHTML = "";
+
+  catalog.forEach((item) => {
+    const found = hasCollectedEvidence(item.id);
+    const slot = document.createElement("button");
+    slot.type = "button";
+    slot.className = `evidence-slot ${found ? "found" : "locked"} ${selectedId === item.id ? "active" : ""}`;
+    slot.innerHTML = `
+      <div class="evidence-slot-icon">${found ? escapeHtml(item.icon) : escapeHtml(item.lockedIcon)}</div>
+      <div class="evidence-slot-name">${found ? escapeHtml(item.name) : escapeHtml(item.lockedName)}</div>
+    `;
+    slot.addEventListener("click", () => {
+      gameState.selectedEvidenceId = item.id;
+      renderEvidenceUI();
+      saveLocalState();
+    });
+    grid.appendChild(slot);
+  });
+
+  renderEvidenceDetail(selectedId);
+}
+
+function renderEvidenceUI() {
+  applyGameTypeUI();
+  renderEvidenceQuickBar();
+  renderEvidenceGrid();
+}
+
+function openEvidenceModal(evidenceId = "") {
+  if (!shouldUseInventoryUI()) return;
+  const modal = byId("evidenceModal");
+  if (!modal) return;
+
+  gameState.selectedEvidenceId = evidenceId || getSelectedEvidenceId();
+  renderEvidenceUI();
+  modal.classList.remove("hidden");
+}
+
+function closeEvidenceModal() {
+  byId("evidenceModal")?.classList.add("hidden");
+}
+
+function showFoundEvidenceModal(item) {
+  if (!item || !shouldUseInventoryUI()) return;
+
+  const modal = byId("evidenceFoundModal");
+  const icon = byId("foundEvidenceIcon");
+  const name = byId("foundEvidenceName");
+  const description = byId("foundEvidenceDescription");
+
+  if (icon) icon.innerText = item.icon || "✨";
+  if (name) name.innerText = item.name || "Nieuw item";
+
+  let text = item.description || "Dit item werd toegevoegd.";
+  if (currentGameType?.engine === "murder") {
+    const extras = [];
+    if (item.suspectName) extras.push("Verdachte: " + item.suspectName);
+    if (item.hasFingerprint) extras.push("Bevat afdruk" + (item.fingerprintLabel ? ` (${item.fingerprintLabel})` : ""));
+    if (item.isFakeClue) extras.push("Let op: mogelijk vals spoor");
+    if (extras.length) {
+      text += "\n\n" + extras.join("\n");
+    }
+  }
+
+  if (description) description.innerText = text;
+  if (modal) modal.classList.remove("hidden");
+}
+
+function closeFoundEvidenceModal() {
+  byId("evidenceFoundModal")?.classList.add("hidden");
+}
+
+function collectEvidenceItem(item, options = {}) {
+  if (!item) return;
+
+  const evidenceMap = getCollectedEvidenceMap();
+  if (evidenceMap[item.id]) {
+    if (activeCollectibleSearch && activeCollectibleSearch.item?.id === item.id) {
+      finishCollectibleSearch();
+    }
+    return;
+  }
+
+  evidenceMap[item.id] = {
+    id: item.id,
+    name: item.name,
+    icon: item.icon,
+    description: item.description,
+    foundAt: Date.now(),
+    suspectName: item.suspectName || "",
+    dialogText: item.dialogText || "",
+    hasFingerprint: !!item.hasFingerprint,
+    isFakeClue: !!item.isFakeClue,
+    evidenceIsCritical: !!item.evidenceIsCritical,
+    fingerprintLabel: item.fingerprintLabel || ""
+  };
+
+  gameState.selectedEvidenceId = item.id;
+  renderEvidenceUI();
+  saveLocalState();
+  syncGroup();
+
+  if (options.showModal !== false) {
+    showFoundEvidenceModal(item);
+  }
+
+  if (activeCollectibleSearch && activeCollectibleSearch.item?.id === item.id) {
+    finishCollectibleSearch();
+  }
+}
+
+function clearSearchCollectibleLayers() {
+  if (searchZoneCircle && map) {
+    map.removeLayer(searchZoneCircle);
+    searchZoneCircle = null;
+  }
+
+  if (collectibleMarker && map) {
+    map.removeLayer(collectibleMarker);
+    collectibleMarker = null;
+  }
+}
+
+function getActiveTarget() {
+  if (activeCollectibleSearch?.item?.coords) {
+    return {
+      name: activeCollectibleSearch.item.name,
+      coords: activeCollectibleSearch.item.coords,
+      radius: activeCollectibleSearch.item.searchRadius || currentGameType?.settings?.searchRadius || 30,
+      type: "collectible"
+    };
+  }
+
+  if (gameState.gatherMode || gameState.finished) {
+    const gather = getGatherCheckpoint(currentCityKey);
+    return {
+      ...gather,
+      type: "gather"
+    };
+  }
+
+  const cp = currentCheckpoints[route[routeIndex]];
+  if (!cp) return null;
+
+  return {
+    ...cp,
+    type: "checkpoint"
+  };
+}
+
+function getCollectibleVisibilityMode() {
+  return currentGameType?.settings?.mapVisibility || "none";
+}
+
+function updateCollectibleMarkerVisibility(lat, lng) {
+  if (!activeCollectibleSearch || !map) return;
+
+  const item = activeCollectibleSearch.item;
+  const visibility = getCollectibleVisibilityMode();
+  const revealDistance = Number(item.revealDistance || currentGameType?.settings?.revealDistance || 15);
+
+  if (visibility === "none") {
+    if (collectibleMarker) {
+      map.removeLayer(collectibleMarker);
+      collectibleMarker = null;
+    }
+    return;
+  }
+
+  if (visibility === "blurZone") {
+    if (collectibleMarker) {
+      map.removeLayer(collectibleMarker);
+      collectibleMarker = null;
+    }
+    return;
+  }
+
+  const dist = map.distance([lat, lng], item.coords);
+  const shouldShow = visibility === "alwaysVisible" || (visibility === "showWhenNearby" && dist <= revealDistance);
+
+  if (!shouldShow) {
+    if (collectibleMarker) {
+      map.removeLayer(collectibleMarker);
+      collectibleMarker = null;
+    }
+    return;
+  }
+
+  if (!collectibleMarker) {
+    const iconHtml = item.icon || "✨";
+    collectibleIcon = L.divIcon({
+      className: "custom-emoji-icon",
+      html: `<div style="font-size:30px; line-height:30px;">${iconHtml}</div>`,
+      iconSize: [30, 30],
+      iconAnchor: [15, 30],
+      popupAnchor: [0, -26]
+    });
+
+    collectibleMarker = L.marker(item.coords, { icon: collectibleIcon }).addTo(map);
+
+    collectibleMarker.on("click", () => {
+      if (hasModule("clickableItems") || currentGameType?.engine === "collectibles" || currentGameType?.engine === "murder") {
+        collectEvidenceItem(item);
+      }
+    });
+  } else {
+    collectibleMarker.setLatLng(item.coords);
+  }
+
+  collectibleMarker.bindPopup(item.name || "Verborgen object");
+}
+
+function startCollectibleSearch(cp) {
+  const item = getCheckpointCollectible(cp, routeIndex);
+  if (!item || !item.coords || !hasModule("collectibles")) {
+    nextCheckpoint();
+    return;
+  }
+
+  activeCollectibleSearch = {
+    checkpointName: cp.name || "Checkpoint",
+    item
+  };
+
+  clearSearchCollectibleLayers();
+
+  if (map && (hasModule("searchZones") || getCollectibleVisibilityMode() === "blurZone")) {
+    searchZoneCircle = L.circle(item.coords, {
+      radius: item.searchRadius || currentGameType?.settings?.searchRadius || 30,
+      opacity: 0.75,
+      fillOpacity: 0.12
+    }).addTo(map);
+  }
+
+  byId("status").innerText = `Zoek het verborgen object in de aangeduide zone: ${item.name}.`;
+
+  closeQuestion();
+  renderEvidenceUI();
+  saveLocalState();
+
+  if (lastKnownLat !== null && lastKnownLng !== null) {
+    updateNavigation(lastKnownLat, lastKnownLng);
+    updateRouteLine(lastKnownLat, lastKnownLng);
+    updateCollectibleMarkerVisibility(lastKnownLat, lastKnownLng);
+  }
+}
+
+function finishCollectibleSearch() {
+  activeCollectibleSearch = null;
+  clearSearchCollectibleLayers();
+  nextCheckpoint();
 }
 
 function getCityRecord(cityKey) {
@@ -246,9 +799,9 @@ function getCityRecord(cityKey) {
       };
     } else if (fallbackCity) {
       gather = {
-        name: "Verzamelpunt",
-        coords: Array.isArray(fallbackCity.gather) ? fallbackCity.gather : fallbackCity.center,
-        radius: 40
+        name: fallbackCity.gather?.name || "Verzamelpunt",
+        coords: Array.isArray(fallbackCity.gather) ? fallbackCity.gather : (fallbackCity.gather?.coords || fallbackCity.center),
+        radius: fallbackCity.gather?.radius || 40
       };
     } else {
       gather = {
@@ -263,6 +816,7 @@ function getCityRecord(cityKey) {
       center,
       gather,
       themeId: firebaseCity.themeId || "",
+      gameTypeId: firebaseCity.gameTypeId || "",
       defaultCheckpoints: fallbackCity?.defaultCheckpoints || []
     };
   }
@@ -272,11 +826,12 @@ function getCityRecord(cityKey) {
       name: fallbackCity.name || cityKey,
       center: fallbackCity.center || [50.85, 4.35],
       gather: {
-        name: "Verzamelpunt",
-        coords: Array.isArray(fallbackCity.gather) ? fallbackCity.gather : fallbackCity.center,
-        radius: 40
+        name: fallbackCity.gather?.name || "Verzamelpunt",
+        coords: Array.isArray(fallbackCity.gather) ? fallbackCity.gather : (fallbackCity.gather?.coords || fallbackCity.center),
+        radius: fallbackCity.gather?.radius || 40
       },
       themeId: fallbackCity.themeId || "",
+      gameTypeId: fallbackCity.gameTypeId || "",
       defaultCheckpoints: fallbackCity.defaultCheckpoints || []
     };
   }
@@ -290,6 +845,7 @@ function getCityRecord(cityKey) {
       radius: 40
     },
     themeId: "",
+    gameTypeId: "",
     defaultCheckpoints: []
   };
 }
@@ -328,10 +884,15 @@ function loadLocalState() {
   if (!saved) return false;
 
   const parsed = JSON.parse(saved);
-  gameState = parsed.gameState;
-  route = parsed.route;
-  routeIndex = parsed.routeIndex;
+  gameState = parsed.gameState || gameState;
+  route = Array.isArray(parsed.route) ? parsed.route : [];
+  routeIndex = Number.isInteger(parsed.routeIndex) ? parsed.routeIndex : 0;
   currentCityKey = parsed.currentCityKey || currentCityKey;
+  gameState.collectedEvidence =
+    gameState.collectedEvidence && typeof gameState.collectedEvidence === "object"
+      ? gameState.collectedEvidence
+      : {};
+  gameState.selectedEvidenceId = gameState.selectedEvidenceId || "";
   return true;
 }
 
@@ -349,7 +910,7 @@ function setActiveCityUI(cityKey) {
   }
 
   if (titleEl) {
-    titleEl.innerText = city.name + " Escape";
+    titleEl.innerText = `${city.name} Escape`;
   }
 }
 
@@ -379,6 +940,31 @@ async function loadThemeForCity(cityKey) {
   if (!themeSnapshot.exists()) return null;
 
   return themeSnapshot.val();
+}
+
+async function loadGameTypeForCity(cityKey) {
+  const citySnapshot = await get(ref(db, "cities/" + cityKey));
+  if (!citySnapshot.exists()) {
+    currentGameType = normalizeGameType({ engine: "classic" });
+    return currentGameType;
+  }
+
+  const cityData = citySnapshot.val();
+  const gameTypeId = cityData?.gameTypeId;
+
+  if (!gameTypeId) {
+    currentGameType = normalizeGameType({ engine: "classic" });
+    return currentGameType;
+  }
+
+  const gameTypeSnapshot = await get(ref(db, "speltypes/" + gameTypeId));
+  if (!gameTypeSnapshot.exists()) {
+    currentGameType = normalizeGameType({ engine: "classic" });
+    return currentGameType;
+  }
+
+  currentGameType = normalizeGameType(gameTypeSnapshot.val());
+  return currentGameType;
 }
 
 function ensureThemeAudio() {
@@ -527,6 +1113,12 @@ async function getNextGroupNumber(cityKey) {
 }
 
 function generateRoute(groupNumber, checkpointCount) {
+  const flow = currentGameType?.settings?.checkpointFlow || "rotatingRoute";
+
+  if (flow === "route" || flow === "freeRoam") {
+    return [...Array(checkpointCount).keys()];
+  }
+
   const start = (groupNumber - 1) % checkpointCount;
   const r = [];
 
@@ -538,10 +1130,6 @@ function generateRoute(groupNumber, checkpointCount) {
 }
 
 function getCurrentCheckpoint() {
-  if (gameState.gatherMode || gameState.finished) {
-    return getGatherCheckpoint(currentCityKey);
-  }
-
   return currentCheckpoints[route[routeIndex]];
 }
 
@@ -552,10 +1140,9 @@ function getCurrentMarkerIcon() {
   return checkpointIcon;
 }
 
-function getNextCheckpointName() {
-  if (gameState.finished) return "Afgerond";
-  const cp = getCurrentCheckpoint();
-  return cp ? cp.name : "-";
+function getCurrentTargetName() {
+  const target = getActiveTarget();
+  return target ? target.name : "-";
 }
 
 function normalizeTaskType(cp) {
@@ -777,19 +1364,22 @@ function renderTaskUI(cp) {
 }
 
 function loadCheckpoint() {
+  const target = getActiveTarget();
   const cp = getCurrentCheckpoint();
   const markerIcon = getCurrentMarkerIcon();
 
-  if (!cp || !map) return;
+  if (!target || !map) return;
+
+  clearSearchCollectibleLayers();
 
   if (checkpointMarker) map.removeLayer(checkpointMarker);
   if (checkpointCircle) map.removeLayer(checkpointCircle);
 
-  checkpointMarker = L.marker(cp.coords, { icon: markerIcon })
+  checkpointMarker = L.marker(target.coords, { icon: markerIcon })
     .addTo(map)
-    .bindPopup(cp.name);
+    .bindPopup(target.name);
 
-  checkpointCircle = L.circle(cp.coords, { radius: cp.radius }).addTo(map);
+  checkpointCircle = L.circle(target.coords, { radius: target.radius }).addTo(map);
 
   if (gameState.gatherMode) {
     byId("modeText").innerText = "Spelmodus: verzamelpunt";
@@ -797,14 +1387,20 @@ function loadCheckpoint() {
   } else if (gameState.finished) {
     byId("modeText").innerText = "Spelmodus: afgerond";
     byId("progressText").innerText = "Alle checkpoints afgerond";
+  } else if (activeCollectibleSearch) {
+    byId("modeText").innerText = "Spelmodus: zoek object";
+    byId("progressText").innerText = `Zoek het object voor ${activeCollectibleSearch.checkpointName}`;
   } else {
-    byId("modeText").innerText = "Spelmodus: normaal";
-    byId("progressText").innerText =
-      "Checkpoint " + (routeIndex + 1) + " / " + route.length;
+    byId("modeText").innerText = `Spelmodus: ${currentGameType?.name || "normaal"}`;
+    byId("progressText").innerText = "Checkpoint " + (routeIndex + 1) + " / " + route.length;
   }
 
-  byId("scoreText").innerText =
-    (gameState.finished ? "Eindscore: " : "Score: ") + gameState.score;
+  if (hasModule("score")) {
+    byId("scoreText").innerText = (gameState.finished ? "Eindscore: " : "Score: ") + gameState.score;
+    byId("scoreText").style.display = "";
+  } else {
+    byId("scoreText").style.display = "none";
+  }
 
   byId("answerFeedback").innerText = "";
   byId("triesFeedback").innerText = "";
@@ -814,12 +1410,13 @@ function loadCheckpoint() {
   resetPhotoTaskUI();
   resetCheckpointMedia();
 
-  if (!gameState.gatherMode && !gameState.finished) {
+  if (!gameState.gatherMode && !gameState.finished && !activeCollectibleSearch && cp) {
     renderTaskUI(cp);
   }
 
   closeQuestion();
   questionOpen = false;
+  renderEvidenceUI();
   saveLocalState();
 
   if (lastKnownLat !== null && lastKnownLng !== null) {
@@ -829,8 +1426,8 @@ function loadCheckpoint() {
 }
 
 function updateRouteLine(lat, lng) {
-  const cp = getCurrentCheckpoint();
-  if (!cp || !map) return;
+  const target = getActiveTarget();
+  if (!target || !map) return;
 
   if (routeLine) {
     map.removeLayer(routeLine);
@@ -839,7 +1436,7 @@ function updateRouteLine(lat, lng) {
   routeLine = L.polyline(
     [
       [lat, lng],
-      cp.coords
+      target.coords
     ],
     {
       weight: 4,
@@ -867,42 +1464,63 @@ function updateLocation(lat, lng) {
 }
 
 function checkDistance(lat, lng) {
-  const cp = getCurrentCheckpoint();
-  if (!cp || !map) return;
+  const target = getActiveTarget();
+  if (!target || !map) return;
 
-  const dist = map.distance([lat, lng], cp.coords);
+  const dist = map.distance([lat, lng], target.coords);
   byId("distanceText").innerText = "Afstand: " + Math.round(dist) + " m";
 
+  if (activeCollectibleSearch) {
+    byId("status").innerText = "Zoek het verborgen object. Nog " + Math.round(dist) + " meter tot de zone.";
+
+    updateCollectibleMarkerVisibility(lat, lng);
+
+    const item = activeCollectibleSearch.item;
+    const revealDistance = Number(item.revealDistance || currentGameType?.settings?.revealDistance || 15);
+
+    if ((getCollectibleVisibilityMode() === "showWhenNearby" || getCollectibleVisibilityMode() === "alwaysVisible") && dist <= revealDistance) {
+      if (!hasModule("clickableItems")) {
+        collectEvidenceItem(item);
+        return;
+      }
+    }
+
+    if (getCollectibleVisibilityMode() === "blurZone" && dist <= (item.searchRadius || 30)) {
+      if (!hasModule("clickableItems")) {
+        collectEvidenceItem(item);
+        return;
+      }
+      byId("status").innerText = "Jullie zitten in de zoekzone. Zoek en klik het object aan.";
+    }
+
+    return;
+  }
+
   if (gameState.gatherMode) {
-    if (dist < cp.radius) {
-      byId("status").innerText =
-        "Jullie zijn aangekomen op het verzamelpunt. Wacht op verdere instructies.";
+    if (dist < target.radius) {
+      byId("status").innerText = "Jullie zijn aangekomen op het verzamelpunt. Wacht op verdere instructies.";
     } else {
-      byId("status").innerText =
-        "Ga naar het verzamelpunt. Nog " + Math.round(dist) + " meter.";
+      byId("status").innerText = "Ga naar het verzamelpunt. Nog " + Math.round(dist) + " meter.";
     }
     return;
   }
 
   if (gameState.finished) {
-    if (dist < cp.radius) {
-      byId("status").innerText =
-        "Jullie zijn aangekomen op het verzamelpunt. Proficiat met jullie score.";
+    if (dist < target.radius) {
+      byId("status").innerText = "Jullie zijn aangekomen op het verzamelpunt. Proficiat.";
     } else {
-      byId("status").innerText =
-        "Proficiat. Ga nu naar het verzamelpunt. Nog " + Math.round(dist) + " meter.";
+      byId("status").innerText = "Proficiat. Ga nu naar het verzamelpunt. Nog " + Math.round(dist) + " meter.";
     }
     return;
   }
 
-  if (dist < cp.radius) {
-    byId("status").innerText = "Jullie zijn aangekomen bij " + cp.name + ".";
+  if (dist < target.radius) {
+    byId("status").innerText = "Jullie zijn aangekomen bij " + target.name + ".";
     if (!questionOpen) {
       openQuestion();
     }
   } else {
-    byId("status").innerText =
-      "Nog " + Math.round(dist) + " meter tot " + cp.name + ".";
+    byId("status").innerText = "Nog " + Math.round(dist) + " meter tot " + target.name + ".";
   }
 }
 
@@ -940,13 +1558,13 @@ function smoothAngle(current, target, factor) {
 }
 
 function updateNavigation(lat, lng) {
-  const cp = getCurrentCheckpoint();
-  if (!cp) return;
+  const target = getActiveTarget();
+  if (!target) return;
 
   const arrowEl = byId("arrow");
   if (!arrowEl) return;
 
-  const targetBearing = getBearing(lat, lng, cp.coords[0], cp.coords[1]);
+  const targetBearing = getBearing(lat, lng, target.coords[0], target.coords[1]);
 
   if (deviceHeading === null) {
     arrowEl.style.display = "none";
@@ -1007,7 +1625,7 @@ async function enableCompass() {
 }
 
 function openQuestion() {
-  if (gameState.gatherMode || gameState.finished) return;
+  if (gameState.gatherMode || gameState.finished || activeCollectibleSearch) return;
 
   const cp = getCurrentCheckpoint();
   if (!cp) return;
@@ -1038,22 +1656,29 @@ function closeTeacherMessage() {
 function finishGame() {
   gameState.finished = true;
   gameState.gatherMode = false;
+  activeCollectibleSearch = null;
+  clearSearchCollectibleLayers();
   closeQuestion();
 
   const gather = getGatherCheckpoint(currentCityKey);
 
   byId("modeText").innerText = "Spelmodus: afgerond";
   byId("progressText").innerText = "Alle checkpoints afgerond";
-  byId("scoreText").innerText = "Eindscore: " + gameState.score;
 
-  alert(
-    "Proficiat! 🎉\n\n" +
-    "Jullie hebben alle checkpoints voltooid.\n\n" +
-    "Jullie behaalden een score van: " +
-    gameState.score +
-    " punten.\n\n" +
-    "Ga nu naar het verzamelpunt."
-  );
+  if (hasModule("score")) {
+    byId("scoreText").innerText = "Eindscore: " + gameState.score;
+  }
+
+  let message = "Proficiat! 🎉\n\nJullie hebben alle checkpoints voltooid.";
+  if (hasModule("score")) {
+    message += "\n\nJullie score: " + gameState.score + " punten.";
+  }
+  if (shouldUseInventoryUI()) {
+    message += "\nVerzamelde items: " + Object.keys(getCollectedEvidenceMap()).length + ".";
+  }
+  message += "\n\nGa nu naar het verzamelpunt.";
+
+  alert(message);
 
   if (checkpointMarker) map.removeLayer(checkpointMarker);
   if (checkpointCircle) map.removeLayer(checkpointCircle);
@@ -1192,15 +1817,78 @@ async function uploadPhotoForCheckpoint(cp) {
   }
 }
 
+function handleCheckpointSuccess(cp, reason = "correct") {
+  const unlockMode = currentGameType?.settings?.collectibleUnlock || "none";
+  const shouldCollectDirectly =
+    hasModule("collectibles") &&
+    (
+      unlockMode === "afterCorrect" ||
+      (unlockMode === "afterCorrectOrMaxTries" && reason === "correct")
+    );
+
+  const shouldSearchAfter =
+    hasModule("collectibles") &&
+    (
+      unlockMode === "searchZoneAfterCorrect" ||
+      (unlockMode === "searchZoneAfterCorrectOrMaxTries" && reason === "correct")
+    );
+
+  if (shouldCollectDirectly) {
+    const item = getCheckpointCollectible(cp, routeIndex);
+    if (item) {
+      collectEvidenceItem(item);
+    }
+    nextCheckpoint();
+    return;
+  }
+
+  if (shouldSearchAfter) {
+    startCollectibleSearch(cp);
+    return;
+  }
+
+  nextCheckpoint();
+}
+
 function handleWrongAttempt(cp) {
   gameState.currentTries++;
+  const maxTries = Number(currentGameType?.settings?.maxTries || 3);
 
-  if (gameState.currentTries >= 3) {
-    gameState.score += Number(cp.pointsAfterMaxTries || 0);
+  if (gameState.currentTries >= maxTries) {
+    if (hasModule("score")) {
+      gameState.score += Number(cp.pointsAfterMaxTries || 0);
+    }
+
+    const unlockMode = currentGameType?.settings?.collectibleUnlock || "none";
+    const shouldCollectOnMax =
+      hasModule("collectibles") &&
+      (
+        unlockMode === "afterMaxTries" ||
+        unlockMode === "afterCorrectOrMaxTries"
+      );
+
+    const shouldSearchOnMax =
+      hasModule("collectibles") &&
+      unlockMode === "searchZoneAfterCorrectOrMaxTries";
+
+    if (shouldCollectOnMax) {
+      const item = getCheckpointCollectible(cp, routeIndex);
+      if (item) {
+        collectEvidenceItem(item);
+      }
+      nextCheckpoint();
+      return;
+    }
+
+    if (shouldSearchOnMax) {
+      startCollectibleSearch(cp);
+      return;
+    }
+
     nextCheckpoint();
   } else {
     byId("answerFeedback").innerText = "Niet juist, probeer opnieuw.";
-    byId("triesFeedback").innerText = "Pogingen over: " + (3 - gameState.currentTries);
+    byId("triesFeedback").innerText = "Pogingen over: " + (maxTries - gameState.currentTries);
   }
 
   saveLocalState();
@@ -1208,7 +1896,7 @@ function handleWrongAttempt(cp) {
 
 async function checkAnswer() {
   const cp = getCurrentCheckpoint();
-  if (!cp || gameState.finished) return;
+  if (!cp || gameState.finished || activeCollectibleSearch) return;
 
   const taskType = normalizeTaskType(cp);
 
@@ -1220,8 +1908,10 @@ async function checkAnswer() {
   const correct = checkCurrentTask();
 
   if (correct) {
-    gameState.score += Number(cp.pointsCorrect || 0);
-    nextCheckpoint();
+    if (hasModule("score")) {
+      gameState.score += Number(cp.pointsCorrect || 0);
+    }
+    handleCheckpointSuccess(cp, "correct");
     return;
   }
 
@@ -1235,6 +1925,8 @@ function nextCheckpoint() {
   currentPuzzleOrder = [];
   currentPuzzleSelectedIndex = null;
   resetPhotoTaskUI();
+  activeCollectibleSearch = null;
+  clearSearchCollectibleLayers();
 
   if (routeIndex >= route.length) {
     finishGame();
@@ -1243,6 +1935,7 @@ function nextCheckpoint() {
 
   loadCheckpoint();
   saveLocalState();
+  syncGroup();
 }
 
 function updateGpsStatus(isGood, text) {
@@ -1313,6 +2006,7 @@ function startGPS() {
 }
 
 function getCheckpointNameForSync() {
+  if (activeCollectibleSearch) return "Zoekobject";
   if (gameState.finished) return "Verzamelpunt";
   const cp = getCurrentCheckpoint();
   return cp ? cp.name : "-";
@@ -1326,12 +2020,16 @@ function syncGroup(lat = null, lng = null) {
     groupNumber: gameState.groupNumber,
     groupName: gameState.groupName,
     groupMembers: gameState.groupMembers,
-    score: gameState.score,
+    score: hasModule("score") ? gameState.score : 0,
     checkpoint: getCheckpointNameForSync(),
-    nextCheckpoint: getNextCheckpointName(),
+    nextCheckpoint: getCurrentTargetName(),
     gatherMode: gameState.gatherMode || gameState.finished,
     finished: gameState.finished,
     routeIndex: routeIndex,
+    collectedEvidenceIds: Object.keys(getCollectedEvidenceMap()),
+    evidenceCount: Object.keys(getCollectedEvidenceMap()).length,
+    gameTypeName: currentGameType?.name || "Klassiek",
+    gameTypeEngine: currentGameType?.engine || "classic",
     lastUpdated: new Date().toISOString()
   };
 
@@ -1353,7 +2051,7 @@ function listenTeacherCommands() {
 
     if (data.commandNextAt && data.commandNextAt > gameState.lastProcessedNextAt) {
       gameState.lastProcessedNextAt = data.commandNextAt;
-      if (!gameState.gatherMode && !gameState.finished) {
+      if (!gameState.gatherMode && !gameState.finished && !activeCollectibleSearch) {
         nextCheckpoint();
       }
       saveLocalState();
@@ -1361,9 +2059,11 @@ function listenTeacherCommands() {
 
     if (data.commandPointsAt && data.commandPointsAt > gameState.lastProcessedPointsAt) {
       gameState.lastProcessedPointsAt = data.commandPointsAt;
-      gameState.score += Number(data.commandPointsValue || 0);
-      byId("scoreText").innerText =
-        (gameState.finished ? "Eindscore: " : "Score: ") + gameState.score;
+      if (hasModule("score")) {
+        gameState.score += Number(data.commandPointsValue || 0);
+        byId("scoreText").innerText =
+          (gameState.finished ? "Eindscore: " : "Score: ") + gameState.score;
+      }
       saveLocalState();
       syncGroup();
     }
@@ -1395,10 +2095,11 @@ function listenGlobalCommands() {
 
     if (data.type === "gather") {
       gameState.gatherMode = true;
+      activeCollectibleSearch = null;
+      clearSearchCollectibleLayers();
       closeQuestion();
       loadCheckpoint();
-      byId("status").innerText =
-        "De begeleider heeft iedereen naar het verzamelpunt gestuurd.";
+      byId("status").innerText = "De begeleider heeft iedereen naar het verzamelpunt gestuurd.";
     }
 
     if (data.type === "resume") {
@@ -1468,7 +2169,7 @@ function listenStudentRanking() {
 
     container.innerHTML = "";
 
-    if (!data || !currentCityKey) {
+    if (!data || !currentCityKey || !hasModule("ranking")) {
       container.innerHTML = "<p>Nog geen scoregegevens beschikbaar.</p>";
       return;
     }
@@ -1486,9 +2187,15 @@ function listenStudentRanking() {
     groups.forEach((g, index) => {
       const row = document.createElement("div");
       row.className = "rank-item";
+
+      let rightText = `${g.score || 0} punten`;
+      if (shouldUseInventoryUI()) {
+        rightText += ` | 🧾 ${g.evidenceCount || 0}`;
+      }
+
       row.innerHTML = `
         <span>${index + 1}. Groep ${g.groupNumber}: ${g.groupName}</span>
-        <span>${g.score || 0} punten</span>
+        <span>${rightText}</span>
       `;
       container.appendChild(row);
     });
@@ -1516,7 +2223,10 @@ async function startGame() {
 
     const cityKey = citySnapshot.val();
     currentCityKey = cityKey;
+
+    await loadGameTypeForCity(cityKey);
     setActiveCityUI(cityKey);
+    applyGameTypeUI();
 
     const theme = await loadThemeForCity(cityKey);
     applyTheme(theme);
@@ -1549,14 +2259,18 @@ async function startGame() {
     gameState.lastProcessedMessageAt = 0;
     gameState.lastProcessedBroadcastAt = 0;
     gameState.sessionStartedAt = Date.now();
+    gameState.collectedEvidence = {};
+    gameState.selectedEvidenceId = "";
 
     route = generateRoute(gameState.groupNumber, currentCheckpoints.length);
     routeIndex = 0;
+    activeCollectibleSearch = null;
 
     byId("loginCard").classList.add("hidden");
     byId("gameArea").classList.remove("hidden");
     byId("teamDisplay").innerText = "Groep " + gameState.groupNumber + ": " + name;
 
+    renderEvidenceUI();
     initMap();
 
     setTimeout(() => {
@@ -1592,6 +2306,10 @@ async function restoreSessionIfPossible() {
     return;
   }
 
+  await loadGameTypeForCity(currentCityKey);
+  setActiveCityUI(currentCityKey);
+  applyGameTypeUI();
+
   await enableCompass();
 
   const theme = await loadThemeForCity(currentCityKey);
@@ -1604,6 +2322,7 @@ async function restoreSessionIfPossible() {
   byId("gameArea").classList.remove("hidden");
   byId("teamDisplay").innerText = "Groep " + gameState.groupNumber + ": " + gameState.groupName;
 
+  renderEvidenceUI();
   initMap();
 
   setTimeout(() => {
@@ -1623,19 +2342,25 @@ async function restoreSessionIfPossible() {
 
 async function handleCityChange(cityKey) {
   currentCityKey = cityKey;
-  setActiveCityUI(cityKey);
 
   if (!cityKey) {
     cityLoaded = false;
+    currentGameType = normalizeGameType({ engine: "classic" });
+    applyGameTypeUI();
     applyTheme(null);
     return;
   }
+
+  await loadGameTypeForCity(cityKey);
+  setActiveCityUI(cityKey);
+  applyGameTypeUI();
 
   const theme = await loadThemeForCity(cityKey);
   applyTheme(theme);
 
   currentCheckpoints = await loadCheckpointsForCity(cityKey);
   cityLoaded = true;
+  renderEvidenceUI();
 
   if (map) {
     resetMapToCity();
@@ -1679,4 +2404,20 @@ if (closeMessageButton) {
   closeMessageButton.onclick = closeTeacherMessage;
 }
 
+const openEvidenceButton = byId("openEvidenceButton");
+if (openEvidenceButton) {
+  openEvidenceButton.onclick = () => openEvidenceModal();
+}
+
+const closeEvidenceButton = byId("closeEvidenceButton");
+if (closeEvidenceButton) {
+  closeEvidenceButton.onclick = closeEvidenceModal;
+}
+
+const closeFoundEvidenceButton = byId("closeFoundEvidenceButton");
+if (closeFoundEvidenceButton) {
+  closeFoundEvidenceButton.onclick = closeFoundEvidenceModal;
+}
+
+renderEvidenceUI();
 bootstrapCurrentCity();
