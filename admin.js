@@ -24,6 +24,8 @@ const auth = getAuth(app);
 
 let citiesCache = {};
 let themesCache = {};
+let speltypesCache = {};
+
 let activeCityKey = null;
 let checkpoints = [];
 let selectedIndex = null;
@@ -31,6 +33,7 @@ let selectedIndex = null;
 let map;
 let markers = [];
 let tempClickMarker = null;
+let activeGameType = null;
 
 function byId(id) {
   return document.getElementById(id);
@@ -38,7 +41,7 @@ function byId(id) {
 
 function setValue(id, value) {
   const el = byId(id);
-  if (el) el.value = value;
+  if (el) el.value = value ?? "";
 }
 
 function getValue(id) {
@@ -46,9 +49,26 @@ function getValue(id) {
   return el ? el.value : "";
 }
 
+function setChecked(id, value) {
+  const el = byId(id);
+  if (el) el.checked = !!value;
+}
+
+function getChecked(id) {
+  const el = byId(id);
+  return !!el?.checked;
+}
+
 function setText(id, value) {
   const el = byId(id);
-  if (el) el.innerText = value;
+  if (el) el.innerText = value ?? "";
+}
+
+function parseCommaList(value) {
+  return String(value || "")
+    .split(",")
+    .map(item => item.trim())
+    .filter(Boolean);
 }
 
 function refreshMapSize(delay = 250) {
@@ -95,6 +115,99 @@ function setProtectedUIVisible(isVisible) {
   }
 }
 
+function normalizeGameType(raw) {
+  return {
+    name: raw?.name || "Klassiek",
+    engine: raw?.engine || "classic",
+    modules: {
+      questions: raw?.modules?.questions ?? true,
+      story: raw?.modules?.story ?? false,
+      inventory: raw?.modules?.inventory ?? false,
+      collectibles: raw?.modules?.collectibles ?? false,
+      dialogs: raw?.modules?.dialogs ?? false,
+      evidenceBook: raw?.modules?.evidenceBook ?? false,
+      fingerprints: raw?.modules?.fingerprints ?? false,
+      fakeClues: raw?.modules?.fakeClues ?? false,
+      secretRoles: raw?.modules?.secretRoles ?? false,
+      sabotage: raw?.modules?.sabotage ?? false,
+      chase: raw?.modules?.chase ?? false
+    }
+  };
+}
+
+function getSelectedGameType() {
+  const gameTypeId = getValue("cityGameTypeSelector").trim();
+  if (!gameTypeId || !speltypesCache[gameTypeId]) {
+    return normalizeGameType({ engine: "classic", name: "Klassiek" });
+  }
+  return normalizeGameType(speltypesCache[gameTypeId]);
+}
+
+function showSection(id, visible) {
+  const el = byId(id);
+  if (!el) return;
+  el.classList.toggle("hidden", !visible);
+}
+
+function applyCheckpointEditorToGameType() {
+  activeGameType = getSelectedGameType();
+
+  const storyVisible =
+    activeGameType.modules.story ||
+    activeGameType.engine === "collectibles" ||
+    activeGameType.engine === "murder";
+
+  showSection("cpStoryBlock", storyVisible);
+
+  const collectibleVisible =
+    activeGameType.modules.collectibles ||
+    activeGameType.modules.inventory ||
+    activeGameType.modules.evidenceBook ||
+    activeGameType.engine === "collectibles" ||
+    activeGameType.engine === "murder";
+
+  showSection("cpCollectibleSection", collectibleVisible);
+
+  const collectibleAdvancedVisible =
+    activeGameType.engine === "collectibles" ||
+    activeGameType.modules.collectibles;
+
+  showSection("cpCollectibleAdvancedSection", collectibleAdvancedVisible);
+
+  const murderVisible =
+    activeGameType.engine === "murder" ||
+    activeGameType.modules.dialogs ||
+    activeGameType.modules.evidenceBook ||
+    activeGameType.modules.fingerprints ||
+    activeGameType.modules.fakeClues;
+
+  showSection("cpMurderSection", murderVisible);
+
+  const moleVisible =
+    activeGameType.engine === "mole" ||
+    activeGameType.modules.secretRoles ||
+    activeGameType.modules.sabotage;
+
+  showSection("cpMoleSection", moleVisible);
+
+  const huntersVisible =
+    activeGameType.engine === "hunters" ||
+    activeGameType.modules.chase;
+
+  showSection("cpHuntersSection", huntersVisible);
+
+  const sectionTitle = byId("cpCollectibleSectionTitle");
+  if (sectionTitle) {
+    if (activeGameType.engine === "murder") {
+      sectionTitle.innerText = "Bewijsmateriaal / bewijsboek";
+    } else if (activeGameType.engine === "collectibles") {
+      sectionTitle.innerText = "Collectible / dossieritem";
+    } else {
+      sectionTitle.innerText = "Collectible / dossieritem";
+    }
+  }
+}
+
 function buildFallbackCityRecord(key, city) {
   const gatherCoords = Array.isArray(city.gather)
     ? city.gather
@@ -112,7 +225,8 @@ function buildFallbackCityRecord(key, city) {
       coords: gatherCoords,
       radius: gatherRadius
     },
-    themeId: city.themeId || ""
+    themeId: city.themeId || "",
+    gameTypeId: city.gameTypeId || ""
   };
 }
 
@@ -158,7 +272,8 @@ function normalizeCityRecord(key, city) {
     name: city.name || fallback?.name || key,
     center,
     gather,
-    themeId: city.themeId || fallback?.themeId || ""
+    themeId: city.themeId || fallback?.themeId || "",
+    gameTypeId: city.gameTypeId || fallback?.gameTypeId || ""
   };
 }
 
@@ -173,7 +288,8 @@ function getCityRecord(cityKey) {
         coords: [50.85, 4.35],
         radius: 40
       },
-      themeId: ""
+      themeId: "",
+      gameTypeId: ""
     };
   }
 
@@ -189,7 +305,8 @@ function getCityRecord(cityKey) {
       coords: [50.85, 4.35],
       radius: 40
     },
-    themeId: ""
+    themeId: "",
+    gameTypeId: ""
   };
 }
 
@@ -209,6 +326,11 @@ function populateCitySelector() {
   const keys = mergedCityKeys();
   select.innerHTML = "";
 
+  const emptyOption = document.createElement("option");
+  emptyOption.value = "";
+  emptyOption.textContent = "Kies een stad";
+  select.appendChild(emptyOption);
+
   if (!keys.length) {
     activeCityKey = null;
     return;
@@ -226,7 +348,7 @@ function populateCitySelector() {
     select.appendChild(option);
   });
 
-  select.value = activeCityKey;
+  select.value = activeCityKey || "";
 }
 
 function populateThemeSelector(selectedThemeId = "") {
@@ -252,6 +374,29 @@ function populateThemeSelector(selectedThemeId = "") {
   select.value = selectedThemeId || "";
 }
 
+function populateGameTypeSelector(selectedGameTypeId = "") {
+  const select = byId("cityGameTypeSelector");
+  if (!select) return;
+
+  select.innerHTML = "";
+
+  const emptyOption = document.createElement("option");
+  emptyOption.value = "";
+  emptyOption.textContent = "Geen speltype gekoppeld";
+  select.appendChild(emptyOption);
+
+  Object.keys(speltypesCache)
+    .sort((a, b) => a.localeCompare(b))
+    .forEach((gameTypeKey) => {
+      const option = document.createElement("option");
+      option.value = gameTypeKey;
+      option.textContent = speltypesCache[gameTypeKey]?.name || gameTypeKey;
+      select.appendChild(option);
+    });
+
+  select.value = selectedGameTypeId || "";
+}
+
 function fillCityForm(cityKey) {
   const city = getCityRecord(cityKey);
 
@@ -265,6 +410,8 @@ function fillCityForm(cityKey) {
   setValue("gatherRadiusInput", city.gather?.radius ?? 40);
 
   populateThemeSelector(city.themeId || "");
+  populateGameTypeSelector(city.gameTypeId || "");
+  applyCheckpointEditorToGameType();
 
   setText("adminCityInfo", city.name ? "Huidige stad: " + city.name : "Nieuwe stad");
 }
@@ -313,6 +460,8 @@ function clearMarkers() {
 }
 
 function renderMarkers() {
+  if (!map) return;
+
   clearMarkers();
 
   checkpoints.forEach((cp, index) => {
@@ -327,6 +476,14 @@ function renderMarkers() {
     });
 
     markers.push(marker);
+
+    if (cp.collectibleCoords && Array.isArray(cp.collectibleCoords) && cp.collectibleCoords.length === 2) {
+      const collectibleMarker = L.circleMarker(cp.collectibleCoords, {
+        radius: 6
+      }).addTo(map);
+      collectibleMarker.bindPopup(`Collectible bij ${cp.name || "checkpoint"}`);
+      markers.push(collectibleMarker);
+    }
   });
 }
 
@@ -335,11 +492,167 @@ function taskTypeLabel(type) {
     text: "Tekstvraag",
     riddle: "Raadsel",
     multipleChoice: "Meerkeuze",
-    matching: "Matching",
+    matching: "Koppelen",
     imagePuzzle: "Afbeeldingspuzzel",
     photo: "Foto-opdracht"
   };
   return labels[type] || type || "Tekstvraag";
+}
+
+function toggleTaskFields() {
+  const type = getValue("cpTaskType") || "text";
+
+  showSection("cpTextAnswersWrapper", false);
+  showSection("cpMultipleChoiceWrapper", false);
+  showSection("cpMatchingWrapper", false);
+  showSection("cpImagePuzzleWrapper", false);
+  showSection("cpPhotoWrapper", false);
+
+  if (type === "text" || type === "riddle") {
+    showSection("cpTextAnswersWrapper", true);
+  }
+
+  if (type === "multipleChoice") {
+    showSection("cpMultipleChoiceWrapper", true);
+  }
+
+  if (type === "matching") {
+    showSection("cpMatchingWrapper", true);
+  }
+
+  if (type === "imagePuzzle") {
+    showSection("cpImagePuzzleWrapper", true);
+  }
+
+  if (type === "photo") {
+    showSection("cpPhotoWrapper", true);
+  }
+}
+
+function clearForm() {
+  setValue("cpName", "");
+  setValue("cpLat", "");
+  setValue("cpLng", "");
+  setValue("cpRadius", "");
+  setValue("cpTaskType", "text");
+  setValue("cpStory", "");
+  setValue("cpQuestion", "");
+  setValue("cpAnswers", "");
+  setValue("cpOptions", "");
+  setValue("cpCorrectOption", "");
+  setValue("cpLeftItems", "");
+  setValue("cpRightItems", "");
+  setValue("cpCorrectPairs", "");
+  setValue("cpImageUrl", "");
+  setValue("cpGridSize", "3");
+  setValue("cpVideo", "");
+  setValue("cpAudio", "");
+  setValue("cpImage", "");
+  setValue("cpPointsCorrect", "10");
+  setValue("cpPointsAfterMaxTries", "4");
+
+  setValue("cpCollectibleName", "");
+  setValue("cpCollectibleIcon", "");
+  setValue("cpCollectibleLockedIcon", "❓");
+  setValue("cpCollectibleLockedName", "Onbekend spoor");
+  setValue("cpCollectibleDescription", "");
+  setValue("cpCollectibleLat", "");
+  setValue("cpCollectibleLng", "");
+  setValue("cpCollectibleSearchRadius", "");
+  setValue("cpCollectibleRevealDistance", "");
+
+  setValue("cpSuspectName", "");
+  setValue("cpDialogText", "");
+  setChecked("cpHasFingerprint", false);
+  setChecked("cpIsFakeClue", false);
+  setChecked("cpEvidenceIsCritical", false);
+  setValue("cpFingerprintLabel", "");
+
+  setValue("cpSabotageHint", "");
+  setChecked("cpCanTriggerSabotage", false);
+  setChecked("cpSecretObjective", false);
+  setValue("cpSecretObjectiveText", "");
+
+  setChecked("cpCanSwitchRoles", false);
+  setChecked("cpCanTriggerChase", false);
+  setValue("cpRoleSwitchValue", "");
+  setValue("cpChaseRadius", "");
+
+  selectedIndex = null;
+  toggleTaskFields();
+  applyCheckpointEditorToGameType();
+  setText("cpEditorStatus", "Nieuw checkpoint");
+}
+
+function loadCheckpointIntoForm(index) {
+  const cp = checkpoints[index];
+  if (!cp) return;
+
+  selectedIndex = index;
+
+  setValue("cpName", cp.name || "");
+  setValue("cpLat", cp.coords?.[0] ?? "");
+  setValue("cpLng", cp.coords?.[1] ?? "");
+  setValue("cpRadius", cp.radius ?? "");
+  setValue("cpTaskType", cp.taskType || "text");
+  setValue("cpStory", cp.story || "");
+  setValue("cpQuestion", cp.question || "");
+
+  setValue("cpVideo", cp.video || "");
+  setValue("cpAudio", cp.audio || "");
+  setValue("cpImage", cp.image || "");
+
+  setValue("cpPointsCorrect", cp.pointsCorrect ?? 10);
+  setValue("cpPointsAfterMaxTries", cp.pointsAfterMaxTries ?? 4);
+
+  setValue("cpAnswers", Array.isArray(cp.answers) ? cp.answers.join(", ") : "");
+  setValue("cpOptions", Array.isArray(cp.options) ? cp.options.join(", ") : "");
+  setValue("cpCorrectOption", cp.correctOption ?? "");
+
+  setValue("cpLeftItems", Array.isArray(cp.leftItems) ? cp.leftItems.join(", ") : "");
+  setValue("cpRightItems", Array.isArray(cp.rightItems) ? cp.rightItems.join(", ") : "");
+  setValue(
+    "cpCorrectPairs",
+    cp.correctPairs
+      ? Object.entries(cp.correctPairs).map(([left, right]) => `${left}=${right}`).join(", ")
+      : ""
+  );
+
+  setValue("cpImageUrl", cp.imageUrl || "");
+  setValue("cpGridSize", cp.gridSize || 3);
+
+  const collectible = cp.collectible || {};
+  setValue("cpCollectibleName", collectible.name || "");
+  setValue("cpCollectibleIcon", collectible.icon || "");
+  setValue("cpCollectibleLockedIcon", collectible.lockedIcon || "❓");
+  setValue("cpCollectibleLockedName", collectible.lockedName || "Onbekend spoor");
+  setValue("cpCollectibleDescription", collectible.description || "");
+  setValue("cpCollectibleLat", cp.collectibleCoords?.[0] ?? "");
+  setValue("cpCollectibleLng", cp.collectibleCoords?.[1] ?? "");
+  setValue("cpCollectibleSearchRadius", cp.collectibleSearchRadius ?? "");
+  setValue("cpCollectibleRevealDistance", cp.collectibleRevealDistance ?? "");
+
+  setValue("cpSuspectName", cp.suspectName || "");
+  setValue("cpDialogText", cp.dialogText || "");
+  setChecked("cpHasFingerprint", !!cp.hasFingerprint);
+  setChecked("cpIsFakeClue", !!cp.isFakeClue);
+  setChecked("cpEvidenceIsCritical", !!cp.evidenceIsCritical);
+  setValue("cpFingerprintLabel", cp.fingerprintLabel || "");
+
+  setValue("cpSabotageHint", cp.sabotageHint || "");
+  setChecked("cpCanTriggerSabotage", !!cp.canTriggerSabotage);
+  setChecked("cpSecretObjective", !!cp.secretObjective);
+  setValue("cpSecretObjectiveText", cp.secretObjectiveText || "");
+
+  setChecked("cpCanSwitchRoles", !!cp.canSwitchRoles);
+  setChecked("cpCanTriggerChase", !!cp.canTriggerChase);
+  setValue("cpRoleSwitchValue", cp.roleSwitchValue ?? "");
+  setValue("cpChaseRadius", cp.chaseRadius ?? "");
+
+  toggleTaskFields();
+  applyCheckpointEditorToGameType();
+  renderCheckpointList();
+  setText("cpEditorStatus", "Checkpoint " + (index + 1) + " geselecteerd");
 }
 
 function renderCheckpointList() {
@@ -358,21 +671,52 @@ function renderCheckpointList() {
     div.className = "checkpoint-card" + (selectedIndex === index ? " selected-card" : "");
 
     let extra = "";
-    if ((cp.taskType || "text") === "multipleChoice") {
+    const type = cp.taskType || "text";
+
+    if (type === "multipleChoice") {
       extra = `<p><strong>Opties:</strong> ${(cp.options || []).join(" | ")}</p>`;
-    } else if ((cp.taskType || "text") === "matching") {
+    } else if (type === "matching") {
       extra = `<p><strong>Matching:</strong> ${(cp.leftItems || []).length} koppels</p>`;
-    } else if ((cp.taskType || "text") === "imagePuzzle") {
+    } else if (type === "imagePuzzle") {
       extra = `<p><strong>Afbeelding:</strong> ${cp.imageUrl || "-"}</p>`;
-    } else if ((cp.taskType || "text") === "photo") {
+    } else if (type === "photo") {
       extra = `<p><strong>Type:</strong> Foto-opdracht</p>`;
     } else {
       extra = `<p><strong>Antwoorden:</strong> ${(cp.answers || []).join(", ")}</p>`;
     }
 
+    const itemInfo = cp.collectible?.name
+      ? `<p><strong>Item:</strong> ${cp.collectible.icon || "❓"} ${cp.collectible.name}</p>`
+      : "";
+
+    const murderInfo =
+      cp.suspectName || cp.dialogText || cp.hasFingerprint || cp.isFakeClue
+        ? `
+          ${cp.suspectName ? `<p><strong>Verdachte:</strong> ${cp.suspectName}</p>` : ""}
+          ${cp.hasFingerprint ? `<p><strong>Afdruk:</strong> ja</p>` : ""}
+          ${cp.isFakeClue ? `<p><strong>Vals spoor:</strong> ja</p>` : ""}
+        `
+        : "";
+
+    const moleInfo =
+      cp.canTriggerSabotage || cp.secretObjective
+        ? `
+          ${cp.canTriggerSabotage ? `<p><strong>Sabotage:</strong> mogelijk</p>` : ""}
+          ${cp.secretObjective ? `<p><strong>Geheime opdracht:</strong> ja</p>` : ""}
+        `
+        : "";
+
+    const huntersInfo =
+      cp.canSwitchRoles || cp.canTriggerChase
+        ? `
+          ${cp.canSwitchRoles ? `<p><strong>Rolwissel:</strong> mogelijk</p>` : ""}
+          ${cp.canTriggerChase ? `<p><strong>Jachtfase:</strong> mogelijk</p>` : ""}
+        `
+        : "";
+
     div.innerHTML = `
       <h3>${index + 1}. ${cp.name || "Checkpoint"}</h3>
-      <p><strong>Type:</strong> ${taskTypeLabel(cp.taskType || "text")}</p>
+      <p><strong>Type:</strong> ${taskTypeLabel(type)}</p>
       <p><strong>Locatie:</strong> ${cp.coords?.[0] ?? "-"}, ${cp.coords?.[1] ?? "-"}</p>
       <p><strong>Radius:</strong> ${cp.radius ?? "-"} m</p>
       <p><strong>Vraag:</strong> ${cp.question || "-"}</p>
@@ -380,108 +724,33 @@ function renderCheckpointList() {
       ${cp.video ? `<p><strong>Video:</strong> ${cp.video}</p>` : ""}
       ${cp.audio ? `<p><strong>Audio:</strong> ${cp.audio}</p>` : ""}
       ${cp.image ? `<p><strong>Afbeelding:</strong> ${cp.image}</p>` : ""}
+      ${itemInfo}
+      ${murderInfo}
+      ${moleInfo}
+      ${huntersInfo}
       ${extra}
-      <p><strong>Punten:</strong> juist ${cp.pointsCorrect ?? 0}, na 3 pogingen ${cp.pointsAfterMaxTries ?? 0}</p>
-      <div class="checkpoint-actions">
-        <button data-edit="${index}">Bewerk</button>
-        <button data-delete="${index}">Verwijder</button>
+      <div class="button-grid">
+        <button type="button" data-edit-index="${index}">Bewerk</button>
+        <button type="button" data-delete-index="${index}">Verwijder</button>
       </div>
     `;
 
     container.appendChild(div);
   });
 
-  container.querySelectorAll("button[data-edit]").forEach(button => {
+  container.querySelectorAll("[data-edit-index]").forEach((button) => {
     button.addEventListener("click", () => {
-      loadCheckpointIntoForm(Number(button.dataset.edit));
+      const index = Number(button.getAttribute("data-edit-index"));
+      loadCheckpointIntoForm(index);
     });
   });
 
-  container.querySelectorAll("button[data-delete]").forEach(button => {
+  container.querySelectorAll("[data-delete-index]").forEach((button) => {
     button.addEventListener("click", () => {
-      deleteCheckpoint(Number(button.dataset.delete));
+      const index = Number(button.getAttribute("data-delete-index"));
+      deleteCheckpoint(index);
     });
   });
-}
-
-function toggleTaskFields() {
-  const type = getValue("cpTaskType");
-
-  byId("textTaskFields").style.display =
-    type === "text" || type === "riddle" ? "block" : "none";
-  byId("multipleChoiceFields").style.display =
-    type === "multipleChoice" ? "block" : "none";
-  byId("matchingFields").style.display =
-    type === "matching" ? "block" : "none";
-  byId("imagePuzzleFields").style.display =
-    type === "imagePuzzle" ? "block" : "none";
-  byId("photoFields").style.display =
-    type === "photo" ? "block" : "none";
-}
-
-function clearForm() {
-  selectedIndex = null;
-
-  setValue("cpName", "");
-  setValue("cpLat", "");
-  setValue("cpLng", "");
-  setValue("cpRadius", "50");
-  setValue("cpTaskType", "text");
-  setValue("cpStory", "");
-  setValue("cpVideo", "");
-  setValue("cpAudio", "");
-  setValue("cpCheckpointImage", "");
-  setValue("cpQuestion", "");
-  setValue("cpAnswers", "");
-  setValue("cpOptions", "");
-  setValue("cpCorrectOption", "0");
-  setValue("cpLeftItems", "");
-  setValue("cpRightItems", "");
-  setValue("cpCorrectPairs", "");
-  setValue("cpImageUrl", "");
-  setValue("cpGridSize", "3");
-  setValue("cpPointsCorrect", "10");
-  setValue("cpPointsAfterMaxTries", "4");
-
-  setText("adminFeedback", "Nieuw checkpoint.");
-  toggleTaskFields();
-}
-
-function loadCheckpointIntoForm(index) {
-  const cp = checkpoints[index];
-  if (!cp) return;
-
-  selectedIndex = index;
-
-  setValue("cpName", cp.name || "");
-  setValue("cpLat", cp.coords?.[0] ?? "");
-  setValue("cpLng", cp.coords?.[1] ?? "");
-  setValue("cpRadius", cp.radius ?? 50);
-  setValue("cpTaskType", cp.taskType || "text");
-  setValue("cpStory", cp.story || "");
-  setValue("cpVideo", cp.video || "");
-  setValue("cpAudio", cp.audio || "");
-  setValue("cpCheckpointImage", cp.image || "");
-  setValue("cpQuestion", cp.question || "");
-  setValue("cpAnswers", (cp.answers || []).join(", "));
-  setValue("cpOptions", (cp.options || []).join("\n"));
-  setValue("cpCorrectOption", cp.correctOption ?? 0);
-  setValue("cpLeftItems", (cp.leftItems || []).join("\n"));
-  setValue("cpRightItems", (cp.rightItems || []).join("\n"));
-
-  const correctPairsText = cp.correctPairs
-    ? Object.entries(cp.correctPairs).map(([left, right]) => `${left}=${right}`).join("\n")
-    : "";
-  setValue("cpCorrectPairs", correctPairsText);
-
-  setValue("cpImageUrl", cp.imageUrl || "");
-  setValue("cpGridSize", cp.gridSize ?? 3);
-  setValue("cpPointsCorrect", cp.pointsCorrect ?? 10);
-  setValue("cpPointsAfterMaxTries", cp.pointsAfterMaxTries ?? 4);
-
-  toggleTaskFields();
-  setText("adminFeedback", "Checkpoint geladen in formulier.");
-  renderCheckpointList();
 }
 
 function buildCheckpointFromForm() {
@@ -489,76 +758,162 @@ function buildCheckpointFromForm() {
   const lat = Number(getValue("cpLat"));
   const lng = Number(getValue("cpLng"));
   const radius = Number(getValue("cpRadius"));
-  const taskType = getValue("cpTaskType");
+  const taskType = getValue("cpTaskType") || "text";
   const question = getValue("cpQuestion").trim();
-  const story = getValue("cpStory").trim();
-  const video = getValue("cpVideo").trim();
-  const audio = getValue("cpAudio").trim();
-  const image = getValue("cpCheckpointImage").trim();
-  const pointsCorrect = Number(getValue("cpPointsCorrect"));
-  const pointsAfterMaxTries = Number(getValue("cpPointsAfterMaxTries"));
 
   if (!name || Number.isNaN(lat) || Number.isNaN(lng) || Number.isNaN(radius) || !question) {
     return null;
   }
+
+  const pointsCorrect = Number(getValue("cpPointsCorrect") || 10);
+  const pointsAfterMaxTries = Number(getValue("cpPointsAfterMaxTries") || 4);
 
   const cp = {
     name,
     coords: [lat, lng],
     radius,
     taskType,
+    story: getValue("cpStory").trim(),
     question,
-    story,
-    video,
-    audio,
-    image,
-    pointsCorrect: Number.isNaN(pointsCorrect) ? 10 : pointsCorrect,
-    pointsAfterMaxTries: Number.isNaN(pointsAfterMaxTries) ? 4 : pointsAfterMaxTries
+    video: getValue("cpVideo").trim(),
+    audio: getValue("cpAudio").trim(),
+    image: getValue("cpImage").trim(),
+    pointsCorrect,
+    pointsAfterMaxTries
   };
 
   if (taskType === "text" || taskType === "riddle") {
-    cp.answers = getValue("cpAnswers")
-      .split(",")
-      .map(item => item.trim().toLowerCase())
-      .filter(Boolean);
+    cp.answers = parseCommaList(getValue("cpAnswers")).map(item => item.toLowerCase());
   }
 
   if (taskType === "multipleChoice") {
-    cp.options = getValue("cpOptions")
-      .split("\n")
-      .map(item => item.trim())
-      .filter(Boolean);
+    cp.options = parseCommaList(getValue("cpOptions"));
     cp.correctOption = Number(getValue("cpCorrectOption") || 0);
   }
 
   if (taskType === "matching") {
-    cp.leftItems = getValue("cpLeftItems")
-      .split("\n")
-      .map(item => item.trim())
-      .filter(Boolean);
-
-    cp.rightItems = getValue("cpRightItems")
-      .split("\n")
-      .map(item => item.trim())
-      .filter(Boolean);
+    cp.leftItems = parseCommaList(getValue("cpLeftItems"));
+    cp.rightItems = parseCommaList(getValue("cpRightItems"));
 
     cp.correctPairs = {};
-    getValue("cpCorrectPairs")
-      .split("\n")
-      .map(item => item.trim())
-      .filter(Boolean)
-      .forEach(line => {
-        const [left, ...rest] = line.split("=");
-        const right = rest.join("=").trim();
-        if (left && right) {
-          cp.correctPairs[left.trim()] = right;
-        }
-      });
+    parseCommaList(getValue("cpCorrectPairs")).forEach((line) => {
+      const [left, ...rest] = line.split("=");
+      const right = rest.join("=").trim();
+      if (left && right) {
+        cp.correctPairs[left.trim()] = right;
+      }
+    });
   }
 
   if (taskType === "imagePuzzle") {
     cp.imageUrl = getValue("cpImageUrl").trim();
     cp.gridSize = Number(getValue("cpGridSize") || 3);
+  }
+
+  const collectibleEnabled =
+    activeGameType?.modules?.collectibles ||
+    activeGameType?.modules?.inventory ||
+    activeGameType?.modules?.evidenceBook ||
+    activeGameType?.engine === "collectibles" ||
+    activeGameType?.engine === "murder";
+
+  if (collectibleEnabled) {
+    const collectibleName = getValue("cpCollectibleName").trim();
+    const collectibleIcon = getValue("cpCollectibleIcon").trim();
+    const collectibleDescription = getValue("cpCollectibleDescription").trim();
+    const collectibleLockedName = getValue("cpCollectibleLockedName").trim() || "Onbekend spoor";
+    const collectibleLockedIcon = getValue("cpCollectibleLockedIcon").trim() || "❓";
+
+    if (collectibleName || collectibleIcon || collectibleDescription) {
+      cp.collectible = {
+        name: collectibleName || "Onbenoemd item",
+        icon: collectibleIcon || "❓",
+        description: collectibleDescription || "Nieuw item.",
+        lockedName: collectibleLockedName,
+        lockedIcon: collectibleLockedIcon
+      };
+    }
+
+    const collectibleLat = getValue("cpCollectibleLat").trim();
+    const collectibleLng = getValue("cpCollectibleLng").trim();
+    const collectibleSearchRadius = getValue("cpCollectibleSearchRadius").trim();
+    const collectibleRevealDistance = getValue("cpCollectibleRevealDistance").trim();
+
+    if (collectibleLat !== "" && collectibleLng !== "") {
+      const parsedLat = Number(collectibleLat);
+      const parsedLng = Number(collectibleLng);
+      if (!Number.isNaN(parsedLat) && !Number.isNaN(parsedLng)) {
+        cp.collectibleCoords = [parsedLat, parsedLng];
+      }
+    }
+
+    if (collectibleSearchRadius !== "") {
+      const parsedSearchRadius = Number(collectibleSearchRadius);
+      if (!Number.isNaN(parsedSearchRadius)) {
+        cp.collectibleSearchRadius = parsedSearchRadius;
+      }
+    }
+
+    if (collectibleRevealDistance !== "") {
+      const parsedRevealDistance = Number(collectibleRevealDistance);
+      if (!Number.isNaN(parsedRevealDistance)) {
+        cp.collectibleRevealDistance = parsedRevealDistance;
+      }
+    }
+  }
+
+  const murderEnabled =
+    activeGameType?.engine === "murder" ||
+    activeGameType?.modules?.dialogs ||
+    activeGameType?.modules?.evidenceBook ||
+    activeGameType?.modules?.fingerprints ||
+    activeGameType?.modules?.fakeClues;
+
+  if (murderEnabled) {
+    cp.suspectName = getValue("cpSuspectName").trim();
+    cp.dialogText = getValue("cpDialogText").trim();
+    cp.hasFingerprint = getChecked("cpHasFingerprint");
+    cp.isFakeClue = getChecked("cpIsFakeClue");
+    cp.evidenceIsCritical = getChecked("cpEvidenceIsCritical");
+    cp.fingerprintLabel = getValue("cpFingerprintLabel").trim();
+  }
+
+  const moleEnabled =
+    activeGameType?.engine === "mole" ||
+    activeGameType?.modules?.secretRoles ||
+    activeGameType?.modules?.sabotage;
+
+  if (moleEnabled) {
+    cp.sabotageHint = getValue("cpSabotageHint").trim();
+    cp.canTriggerSabotage = getChecked("cpCanTriggerSabotage");
+    cp.secretObjective = getChecked("cpSecretObjective");
+    cp.secretObjectiveText = getValue("cpSecretObjectiveText").trim();
+  }
+
+  const huntersEnabled =
+    activeGameType?.engine === "hunters" ||
+    activeGameType?.modules?.chase;
+
+  if (huntersEnabled) {
+    cp.canSwitchRoles = getChecked("cpCanSwitchRoles");
+    cp.canTriggerChase = getChecked("cpCanTriggerChase");
+
+    const roleSwitchValue = getValue("cpRoleSwitchValue").trim();
+    const chaseRadius = getValue("cpChaseRadius").trim();
+
+    if (roleSwitchValue !== "") {
+      const parsedRoleSwitchValue = Number(roleSwitchValue);
+      if (!Number.isNaN(parsedRoleSwitchValue)) {
+        cp.roleSwitchValue = parsedRoleSwitchValue;
+      }
+    }
+
+    if (chaseRadius !== "") {
+      const parsedChaseRadius = Number(chaseRadius);
+      if (!Number.isNaN(parsedChaseRadius)) {
+        cp.chaseRadius = parsedChaseRadius;
+      }
+    }
   }
 
   return cp;
@@ -568,17 +923,17 @@ function saveCheckpointToList() {
   const cp = buildCheckpointFromForm();
 
   if (!cp) {
-    setText("adminFeedback", "Vul minstens naam, latitude, longitude, radius en vraag correct in.");
+    setText("cpEditorStatus", "Vul minstens naam, latitude, longitude, radius en vraag correct in.");
     return;
   }
 
   if (selectedIndex === null) {
     checkpoints.push(cp);
     selectedIndex = checkpoints.length - 1;
-    setText("adminFeedback", "Checkpoint toegevoegd aan de lijst.");
+    setText("cpEditorStatus", "Checkpoint toegevoegd aan de lijst.");
   } else {
     checkpoints[selectedIndex] = cp;
-    setText("adminFeedback", "Checkpoint bijgewerkt in de lijst.");
+    setText("cpEditorStatus", "Checkpoint bijgewerkt in de lijst.");
   }
 
   renderCheckpointList();
@@ -590,11 +945,12 @@ function deleteCheckpoint(index) {
 
   if (selectedIndex === index) {
     selectedIndex = null;
+    clearForm();
   } else if (selectedIndex !== null && selectedIndex > index) {
     selectedIndex--;
   }
 
-  setText("adminFeedback", "Checkpoint verwijderd.");
+  setText("cpEditorStatus", "Checkpoint verwijderd.");
   renderCheckpointList();
   renderMarkers();
 }
@@ -612,10 +968,10 @@ async function loadCityFromFirebase() {
   if (checkpointSnapshot.exists()) {
     const data = checkpointSnapshot.val();
     checkpoints = Array.isArray(data) ? data : [];
-    setText("adminFeedback", "Stad en checkpoints geladen uit Firebase.");
+    setText("cpEditorStatus", "Stad en checkpoints geladen uit Firebase.");
   } else {
     checkpoints = [];
-    setText("adminFeedback", "Nog geen checkpoints gevonden in Firebase voor deze stad.");
+    setText("cpEditorStatus", "Nog geen checkpoints gevonden in Firebase voor deze stad.");
   }
 
   fillCityForm(activeCityKey);
@@ -627,7 +983,7 @@ async function loadCityFromFirebase() {
 
 function loadTemplateData() {
   if (!activeCityKey || !fallbackCities[activeCityKey]) {
-    setText("adminFeedback", "Geen template gevonden in cities.js voor deze stad.");
+    setText("cpEditorStatus", "Geen template gevonden in cities.js voor deze stad.");
     return;
   }
 
@@ -642,6 +998,8 @@ function loadTemplateData() {
   setValue("gatherLngInput", city.gather.coords[1]);
   setValue("gatherRadiusInput", city.gather.radius);
   populateThemeSelector(city.themeId || "");
+  populateGameTypeSelector(city.gameTypeId || "");
+  applyCheckpointEditorToGameType();
 
   checkpoints = JSON.parse(JSON.stringify(fallbackCities[activeCityKey].defaultCheckpoints || []));
   selectedIndex = null;
@@ -649,7 +1007,7 @@ function loadTemplateData() {
   renderMarkers();
   resetMapCity();
 
-  setText("adminFeedback", "Template geladen voor " + city.name + ".");
+  setText("cpEditorStatus", "Template geladen voor " + city.name + ".");
 }
 
 async function saveCityToFirebase() {
@@ -662,6 +1020,7 @@ async function saveCityToFirebase() {
   const gatherLng = Number(getValue("gatherLngInput"));
   const gatherRadius = Number(getValue("gatherRadiusInput"));
   const themeId = getValue("cityThemeSelector").trim();
+  const gameTypeId = getValue("cityGameTypeSelector").trim();
 
   if (
     !cityKey ||
@@ -672,7 +1031,7 @@ async function saveCityToFirebase() {
     Number.isNaN(gatherLng) ||
     Number.isNaN(gatherRadius)
   ) {
-    setText("adminFeedback", "Vul alle stadsvelden correct in.");
+    setText("cpEditorStatus", "Vul alle stadsvelden correct in.");
     return;
   }
 
@@ -684,10 +1043,12 @@ async function saveCityToFirebase() {
       coords: [gatherLat, gatherLng],
       radius: gatherRadius
     },
-    themeId: themeId || ""
+    themeId: themeId || "",
+    gameTypeId: gameTypeId || ""
   };
 
   await set(ref(db, "cities/" + cityKey), cityPayload);
+  await set(ref(db, "cityData/" + cityKey + "/checkpoints"), checkpoints);
 
   citiesCache[cityKey] = cityPayload;
   activeCityKey = cityKey;
@@ -696,7 +1057,7 @@ async function saveCityToFirebase() {
   fillCityForm(cityKey);
   resetMapCity();
 
-  setText("adminFeedback", "Stad opgeslagen in Firebase.");
+  setText("cpEditorStatus", "Stad en checkpoints opgeslagen in Firebase.");
 }
 
 async function deleteCityFromFirebase() {
@@ -726,22 +1087,9 @@ async function deleteCityFromFirebase() {
 
   renderCheckpointList();
   renderMarkers();
+  clearForm();
 
-  setText("adminFeedback", "Stad verwijderd uit Firebase.");
-}
-
-async function saveAllToFirebase() {
-  if (!activeCityKey) {
-    setText("adminFeedback", "Geen actieve stad geselecteerd.");
-    return;
-  }
-
-  await set(ref(db, "cityData/" + activeCityKey + "/checkpoints"), checkpoints);
-
-  setText(
-    "adminFeedback",
-    "Alle checkpoints opgeslagen in Firebase voor " + getCityRecord(activeCityKey).name + "."
-  );
+  setText("cpEditorStatus", "Stad verwijderd uit Firebase.");
 }
 
 function startNewCityForm() {
@@ -759,6 +1107,7 @@ function startNewCityForm() {
   setValue("gatherLngInput", "");
   setValue("gatherRadiusInput", "40");
   populateThemeSelector("");
+  populateGameTypeSelector("");
 
   checkpoints = [];
   selectedIndex = null;
@@ -767,12 +1116,18 @@ function startNewCityForm() {
   clearForm();
 
   setText("adminCityInfo", "Nieuwe stad aanmaken");
-  setText("adminFeedback", "Vul de nieuwe stadsgegevens in.");
+  setText("cpEditorStatus", "Vul de nieuwe stadsgegevens in.");
 }
 
 byId("adminCitySelector")?.addEventListener("change", async (e) => {
-  activeCityKey = e.target.value;
-  fillCityForm(activeCityKey);
+  activeCityKey = e.target.value || null;
+
+  if (activeCityKey) {
+    fillCityForm(activeCityKey);
+  } else {
+    setText("adminCityInfo", "Geen stad geselecteerd.");
+  }
+
   checkpoints = [];
   selectedIndex = null;
   clearForm();
@@ -782,28 +1137,35 @@ byId("adminCitySelector")?.addEventListener("change", async (e) => {
 });
 
 byId("cpTaskType")?.addEventListener("change", toggleTaskFields);
+byId("cityGameTypeSelector")?.addEventListener("change", applyCheckpointEditorToGameType);
 byId("loadCityButton")?.addEventListener("click", loadCityFromFirebase);
 byId("loadTemplateButton")?.addEventListener("click", loadTemplateData);
 byId("newCityButton")?.addEventListener("click", startNewCityForm);
 byId("saveCityButton")?.addEventListener("click", saveCityToFirebase);
 byId("deleteCityButton")?.addEventListener("click", deleteCityFromFirebase);
-byId("newCheckpointButton")?.addEventListener("click", clearForm);
-byId("saveCheckpointButton")?.addEventListener("click", saveCheckpointToList);
+byId("addCheckpointButton")?.addEventListener("click", clearForm);
+byId("updateCheckpointButton")?.addEventListener("click", saveCheckpointToList);
 byId("deleteCheckpointButton")?.addEventListener("click", () => {
   if (selectedIndex === null) {
-    setText("adminFeedback", "Selecteer eerst een checkpoint.");
+    setText("cpEditorStatus", "Selecteer eerst een checkpoint.");
     return;
   }
   deleteCheckpoint(selectedIndex);
 });
-byId("saveAllButton")?.addEventListener("click", saveAllToFirebase);
 
 toggleTaskFields();
+clearForm();
 initMap();
 
 onValue(ref(db, "themes"), (snapshot) => {
   themesCache = snapshot.val() || {};
   populateThemeSelector(getCityRecord(activeCityKey || "")?.themeId || "");
+});
+
+onValue(ref(db, "speltypes"), (snapshot) => {
+  speltypesCache = snapshot.val() || {};
+  populateGameTypeSelector(getCityRecord(activeCityKey || "")?.gameTypeId || "");
+  applyCheckpointEditorToGameType();
 });
 
 onValue(ref(db, "cities"), (snapshot) => {
