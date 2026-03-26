@@ -122,9 +122,6 @@ let collectibleIcon = L.divIcon({
   popupAnchor: [0, -26]
 });
 
-function startGame() {
-  document.getElementById("introOverlay").style.display = "none";
-}
 
 function byId(id) {
   return document.getElementById(id);
@@ -596,6 +593,18 @@ function showFoundEvidenceModal(item) {
 
 function closeFoundEvidenceModal() {
   byId("evidenceFoundModal")?.classList.add("hidden");
+}
+
+function showGameIntro() {
+  const modal = byId("gameIntroModal");
+  if (!modal) return;
+  modal.classList.remove("hidden");
+}
+
+function closeGameIntro() {
+  const modal = byId("gameIntroModal");
+  if (!modal) return;
+  modal.classList.add("hidden");
 }
 
 function collectEvidenceItem(item, options = {}) {
@@ -2336,6 +2345,8 @@ async function startGame() {
     byId("gameArea").classList.remove("hidden");
     byId("teamDisplay").innerText = "Groep " + gameState.groupNumber + ": " + name;
 
+    showGameIntro();
+
     renderEvidenceUI();
     initMap();
 
@@ -2483,6 +2494,11 @@ if (closeEvidenceButton) {
 const closeFoundEvidenceButton = byId("closeFoundEvidenceButton");
 if (closeFoundEvidenceButton) {
   closeFoundEvidenceButton.onclick = closeFoundEvidenceModal;
+}
+
+const closeGameIntroButton = byId("closeGameIntroButton");
+if (closeGameIntroButton) {
+  closeGameIntroButton.onclick = closeGameIntro;
 }
 
 renderEvidenceUI();
