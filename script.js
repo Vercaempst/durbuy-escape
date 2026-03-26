@@ -599,6 +599,7 @@ function closeFoundEvidenceModal() {
 }
 
 function collectEvidenceItem(item, options = {}) {
+  showCollectibleAnimation(item);
   if (!item) return;
 
   const evidenceMap = getCollectedEvidenceMap();
@@ -635,6 +636,25 @@ function collectEvidenceItem(item, options = {}) {
   if (activeCollectibleSearch && activeCollectibleSearch.item?.id === item.id) {
     finishCollectibleSearch();
   }
+}
+
+function showCollectibleAnimation(item) {
+  const div = document.createElement("div");
+  div.className = "collectible-popup";
+
+  div.innerHTML = `
+    <div class="popup-content">
+      <div class="icon">${item.icon || "✨"}</div>
+      <h2>${item.name}</h2>
+      <p>Toegevoegd aan je dossier</p>
+    </div>
+  `;
+
+  document.body.appendChild(div);
+
+  setTimeout(() => {
+    div.remove();
+  }, 2500);
 }
 
 function clearSearchCollectibleLayers() {
