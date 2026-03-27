@@ -7,19 +7,16 @@ import {
   ref,
   get,
   update,
+  set,
   runTransaction,
   onValue
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
 
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
-const PLAYER_ICON_SIZE = 32;
-const CHECKPOINT_ICON_SIZE = 34;
-const GATHER_ICON_SIZE = 34;
-const COLLECTIBLE_ICON_SIZE = 38;
 
 let citiesCache = {};
-let currentGameType = null;
+let currentGameType = normalizeGameType({ engine: "classic" });
 
 let map = null;
 let playerMarker = null;
@@ -28,13 +25,33 @@ let checkpointCircle = null;
 let routeLine = null;
 let searchZoneCircle = null;
 let collectibleMarker = null;
-let questionOpen = false;
 
 let route = [];
 let routeIndex = 0;
 let currentCheckpoints = [];
 let currentCityKey = null;
 
+let lastKnownLat = null;
+let lastKnownLng = null;
+let deviceHeading = null;
+let filteredLat = null;
+let filteredLng = null;
+let smoothedHeading = null;
+let gpsWatchId = null;
+let lastLocationUpdateTime = 0;
+let lastProcessedLat = null;
+let lastProcessedLng = null;
+
+let selectedPhotoFile = null;
+let uploadedPhotoPending = false;
+let currentPuzzleOrder = [];
+let currentPuzzleSelectedIndex = null;
+
+let currentTheme = null;
+let themeAudio = null;
+let activeCollectibleSearch = null;
+
+let questionOpen = false;
 let groupListenerStarted = false;
 let globalListenerStarted = false;
 let rankingListenerStarted = false;
@@ -42,33 +59,15 @@ let resetListenerStarted = false;
 let compassListenerStarted = false;
 let broadcastListenerStarted = false;
 
-let lastKnownLat = null;
-let lastKnownLng = null;
-let deviceHeading = null;
-
-let currentPuzzleOrder = [];
-let currentPuzzleSelectedIndex = null;
-
-let selectedPhotoFile = null;
-let uploadedPhotoPending = false;
-
-let gpsWatchId = null;
-let filteredLat = null;
-let filteredLng = null;
-let smoothedHeading = null;
-let currentArrowRotation = 0;
-let lastLocationUpdateTime = 0;
-let lastProcessedLat = null;
-let lastProcessedLng = null;
-
-let currentTheme = null;
-let themeAudio = null;
-let activeCollectibleSearch = null;
-
 const GPS_MIN_DISTANCE_METERS = 4;
 const GPS_MIN_UPDATE_MS = 1200;
 const LOCATION_SMOOTHING = 0.25;
 const HEADING_SMOOTHING = 0.18;
+
+const PLAYER_ICON_SIZE = 34;
+const CHECKPOINT_ICON_SIZE = 38;
+const GATHER_ICON_SIZE = 38;
+const COLLECTIBLE_ICON_SIZE = 42;
 
 let gameState = {
   groupId: null,
@@ -89,52 +88,13 @@ let gameState = {
   lastProcessedBroadcastAt: 0,
   sessionStartedAt: 0,
   collectedEvidence: {},
-  selectedEvidenceId: ""
+  selectedEvidenceId: "",
+  introShown: false
 };
 
-let playerIcon = L.divIcon({
-  className: "custom-emoji-icon",
-  html: `<div style="font-size:32px; line-height:32px;">🚶</div>`,
-  iconSize: [32, 32],
-  iconAnchor: [16, 32],
-  popupAnchor: [0, -28]
-});
-
-let checkpointIcon = L.divIcon({
-  className: "custom-emoji-icon",
-  html: `<div style="font-size:30px; line-height:30px;">🚩</div>`,
-  iconSize: [30, 30],
-  iconAnchor: [15, 30],
-  popupAnchor: [0, -26]
-});
-
-let gatherIcon = L.divIcon({
-  className: "custom-emoji-icon",
-  html: `<div style="font-size:30px; line-height:30px;">⭐</div>`,
-  iconSize: [30, 30],
-  iconAnchor: [15, 30],
-  popupAnchor: [0, -26]
-});
-
-let collectibleIcon = L.divIcon({
-  className: "custom-emoji-icon",
-  html: `<div style="font-size:30px; line-height:30px;">✨</div>`,
-  iconSize: [30, 30],
-  iconAnchor: [15, 30],
-  popupAnchor: [0, -26]
-});
-
-function updateBodyModalState() {
-  const hasOpenModal = document.querySelector(".modal-overlay:not(.hidden)");
-  document.body.classList.toggle("modal-open", !!hasOpenModal);
-}
-
-function setModalVisible(id, visible) {
-  const el = byId(id);
-  if (!el) return;
-  el.classList.toggle("hidden", !visible);
-  updateBodyModalState();
-}
+let playerIcon = createEmojiIcon("🚶", PLAYER_ICON_SIZE);
+let checkpointIcon = createEmojiIcon("🚩", CHECKPOINT_ICON_SIZE);
+let gatherIcon = createEmojiIcon("⭐", GATHER_ICON_SIZE);
 
 function byId(id) {
   return document.getElementById(id);
@@ -143,11 +103,6 @@ function byId(id) {
 function setText(id, value) {
   const el = byId(id);
   if (el) el.innerText = value ?? "";
-}
-
-function setHtml(id, value) {
-  const el = byId(id);
-  if (el) el.innerHTML = value ?? "";
 }
 
 function showElement(el) {
@@ -171,8 +126,13 @@ function hideElement(el, clearSrc = false) {
     try {
       el.pause();
       el.currentTime = 0;
-    } catch (e) {}
+    } catch {}
   }
+}
+
+function setBodyModalState() {
+  const openModal = document.querySelector(".modal:not(.hidden), .modal-overlay:not(.hidden)");
+  document.body.classList.toggle("modal-open", !!openModal);
 }
 
 function escapeHtml(value) {
@@ -196,7 +156,10 @@ function normalizeVideoUrl(url) {
   if (!url) return "";
   const raw = String(url).trim();
   if (!raw) return "";
-  if (raw.includes("youtube.com/embed/") || raw.includes("player.vimeo.com/video/")) return raw;
+
+  if (raw.includes("youtube.com/embed/") || raw.includes("player.vimeo.com/video/")) {
+    return raw;
+  }
 
   try {
     const parsed = new URL(raw);
@@ -266,52 +229,137 @@ function hasModule(name) {
   return !!currentGameType?.modules?.[name];
 }
 
-function shouldUseInventoryUI() {
-  return hasModule("inventory") || hasModule("evidenceBook") || hasModule("collectibles");
+function createEmojiIcon(emoji, size) {
+  return L.divIcon({
+    className: "custom-emoji-icon",
+    html: `<div style="font-size:${size}px; line-height:${size}px;">${emoji}</div>`,
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size],
+    popupAnchor: [0, -26]
+  });
 }
 
-function getInventoryLabel() {
-  if (!currentGameType) return "Dossier";
-  if (currentGameType.engine === "collectibles") {
-    return currentGameType.engineConfig?.inventoryName || "Dossier";
+function ensureStudentUX() {
+  const gameArea = byId("gameArea");
+  if (!gameArea) return;
+
+  const scoreCard = byId("studentRankingContainer")?.closest(".card");
+  if (scoreCard) {
+    const heading = scoreCard.querySelector("h2");
+    if (heading) heading.innerText = "Topscore";
   }
-  if (currentGameType.engine === "murder") {
-    return currentGameType.engineConfig?.bookName || "Bewijsboek";
+
+  const modeText = byId("modeText");
+  if (modeText) modeText.style.display = "none";
+
+  const navigationBox = byId("navigationBox");
+  if (navigationBox) {
+    const toggleAudioExists = byId("toggleAudioButton");
+    const grimoireExists = byId("openEvidenceButton");
+
+    if (!grimoireExists) {
+      const grimoireButton = document.createElement("button");
+      grimoireButton.id = "openEvidenceButton";
+      grimoireButton.type = "button";
+      grimoireButton.style.display = "none";
+      grimoireButton.innerText = "📖 Open grimoire";
+
+      const teamDisplay = byId("teamDisplay");
+      if (teamDisplay && teamDisplay.parentElement) {
+        teamDisplay.parentElement.insertBefore(grimoireButton, teamDisplay.nextSibling);
+      } else {
+        navigationBox.prepend(grimoireButton);
+      }
+    }
+
+    if (!toggleAudioExists) {
+      const audioBtn = document.createElement("button");
+      audioBtn.id = "toggleAudioButton";
+      audioBtn.type = "button";
+      audioBtn.innerText = "🔇 Geluid uit";
+      audioBtn.style.marginLeft = "8px";
+
+      const grimoireBtn = byId("openEvidenceButton");
+      if (grimoireBtn && grimoireBtn.parentElement) {
+        grimoireBtn.parentElement.insertBefore(audioBtn, grimoireBtn.nextSibling);
+      } else {
+        navigationBox.prepend(audioBtn);
+      }
+    }
   }
-  return currentGameType.engineConfig?.inventoryName || "Dossier";
-}
 
-function updateInventoryTexts() {
-  const label = getInventoryLabel();
-  const openButton = byId("openEvidenceButton");
-  const modalTitle = byId("evidenceModal")?.querySelector("h2");
-  const intro = byId("evidenceIntroText");
+  ensureModal("introModal", `
+    <div class="modal-content">
+      <h2 id="introTitle">Jullie missie begint</h2>
+      <p id="introText">Welkom in het verhaal...</p>
+      <button id="closeIntroButton" type="button">Betreed het spel</button>
+    </div>
+  `);
 
-  if (openButton) openButton.innerText = `📂 Open ${label.toLowerCase()}`;
-  if (modalTitle) modalTitle.innerText = label;
+  ensureModal("evidenceModal", `
+    <div class="modal-content">
+      <h2>Grimoire</h2>
+      <p id="evidenceIntroText"></p>
+      <div id="evidenceGrid" class="button-grid"></div>
+      <div class="card">
+        <div id="evidenceDetailIcon" style="font-size:40px;">❓</div>
+        <h3 id="evidenceDetailName">Nog geen item geselecteerd</h3>
+        <p id="evidenceDetailDescription">Klik op een item om meer informatie te bekijken.</p>
+        <p id="evidenceDetailStatus">Status: onbekend</p>
+      </div>
+      <button id="closeEvidenceButton" type="button">Sluiten</button>
+    </div>
+  `);
 
-  if (intro) {
-    if (currentGameType?.engine === "collectibles") {
-      intro.innerText = `Verzamel verborgen voorwerpen en vul jullie ${label.toLowerCase()} aan.`;
-    } else if (currentGameType?.engine === "murder") {
-      intro.innerText = `Alle verzamelde bewijzen verschijnen in jullie ${label.toLowerCase()}.`;
+  ensureModal("evidenceFoundModal", `
+    <div class="modal-content">
+      <div id="foundEvidenceIcon" style="font-size:52px; margin-bottom:8px;">✨</div>
+      <h2 id="foundEvidenceName">Nieuw item</h2>
+      <p id="foundEvidenceDescription">Item toegevoegd.</p>
+      <button id="closeFoundEvidenceButton" type="button">Oké</button>
+    </div>
+  `);
+
+  if (!byId("evidenceQuickBar")) {
+    const quickBarCard = document.createElement("div");
+    quickBarCard.className = "card hidden";
+    quickBarCard.id = "evidenceQuickBar";
+    quickBarCard.innerHTML = `
+      <h3>Snelle items</h3>
+      <div id="evidenceQuickSlots" class="button-grid"></div>
+    `;
+    const mapEl = byId("map");
+    if (mapEl && mapEl.parentElement) {
+      mapEl.parentElement.insertBefore(quickBarCard, mapEl);
     } else {
-      intro.innerText = `Hier zie je de verzamelde items in jullie ${label.toLowerCase()}.`;
+      gameArea.appendChild(quickBarCard);
     }
   }
 }
 
-function applyGameTypeUI() {
-  updateInventoryTexts();
+function ensureModal(id, innerHtml) {
+  let modal = byId(id);
+  if (!modal) {
+    modal = document.createElement("div");
+    modal.id = id;
+    modal.className = "modal hidden";
+    modal.innerHTML = innerHtml;
+    document.body.appendChild(modal);
+  }
+}
 
-  const showInventory = shouldUseInventoryUI();
-  const openButton = byId("openEvidenceButton");
-  const quickBar = byId("evidenceQuickBar");
-  const rankingCard = byId("studentRankingContainer")?.closest(".card");
+function openModal(id) {
+  const el = byId(id);
+  if (!el) return;
+  el.classList.remove("hidden");
+  setBodyModalState();
+}
 
-  if (openButton) openButton.style.display = showInventory ? "" : "none";
-  if (quickBar) quickBar.classList.toggle("hidden", !showInventory);
-  if (rankingCard) rankingCard.classList.toggle("hidden", !hasModule("ranking"));
+function closeModal(id) {
+  const el = byId(id);
+  if (!el) return;
+  el.classList.add("hidden");
+  setBodyModalState();
 }
 
 function getCityRecord(cityKey) {
@@ -409,7 +457,7 @@ async function loadCheckpointsForCity(cityKey) {
   const snapshot = await get(ref(db, "cityData/" + cityKey + "/checkpoints"));
   if (snapshot.exists()) {
     const data = snapshot.val();
-    if (Array.isArray(data) && data.length) return data;
+    if (Array.isArray(data) && data.length > 0) return data;
   }
   return getCityRecord(cityKey).defaultCheckpoints || [];
 }
@@ -424,7 +472,6 @@ async function loadThemeForCity(cityKey) {
 
   const themeSnapshot = await get(ref(db, "themes/" + themeId));
   if (!themeSnapshot.exists()) return null;
-
   return themeSnapshot.val();
 }
 
@@ -465,29 +512,9 @@ function applyIcons(theme) {
   const gatherEmoji = theme?.iconGather || "⭐";
   const playerEmoji = theme?.iconPlayer || "🚶";
 
-    playerIcon = L.divIcon({
-    className: "custom-emoji-icon",
-    html: `<div style="font-size:${PLAYER_ICON_SIZE}px; line-height:${PLAYER_ICON_SIZE}px;">${playerEmoji}</div>`,
-    iconSize: [PLAYER_ICON_SIZE, PLAYER_ICON_SIZE],
-    iconAnchor: [PLAYER_ICON_SIZE / 2, PLAYER_ICON_SIZE],
-    popupAnchor: [0, -28]
-  });
-
-  checkpointIcon = L.divIcon({
-    className: "custom-emoji-icon",
-    html: `<div style="font-size:${CHECKPOINT_ICON_SIZE}px; line-height:${CHECKPOINT_ICON_SIZE}px;">${checkpointEmoji}</div>`,
-    iconSize: [CHECKPOINT_ICON_SIZE, CHECKPOINT_ICON_SIZE],
-    iconAnchor: [CHECKPOINT_ICON_SIZE / 2, CHECKPOINT_ICON_SIZE],
-    popupAnchor: [0, -26]
-  });
-
-  gatherIcon = L.divIcon({
-    className: "custom-emoji-icon",
-    html: `<div style="font-size:${GATHER_ICON_SIZE}px; line-height:${GATHER_ICON_SIZE}px;">${gatherEmoji}</div>`,
-    iconSize: [GATHER_ICON_SIZE, GATHER_ICON_SIZE],
-    iconAnchor: [GATHER_ICON_SIZE / 2, GATHER_ICON_SIZE],
-    popupAnchor: [0, -26]
-  });
+  playerIcon = createEmojiIcon(playerEmoji, PLAYER_ICON_SIZE);
+  checkpointIcon = createEmojiIcon(checkpointEmoji, CHECKPOINT_ICON_SIZE);
+  gatherIcon = createEmojiIcon(gatherEmoji, GATHER_ICON_SIZE);
 
   if (playerMarker) playerMarker.setIcon(playerIcon);
   if (checkpointMarker) checkpointMarker.setIcon(getCurrentMarkerIcon());
@@ -499,6 +526,7 @@ function applyBackgroundMusic(theme) {
   if (!theme || !theme.backgroundMusic) {
     themeAudio.pause();
     themeAudio.src = "";
+    updateAudioButton();
     return;
   }
 
@@ -506,6 +534,7 @@ function applyBackgroundMusic(theme) {
   if (!nextSrc) {
     themeAudio.pause();
     themeAudio.src = "";
+    updateAudioButton();
     return;
   }
 
@@ -517,6 +546,8 @@ function applyBackgroundMusic(theme) {
     typeof theme.backgroundMusicVolume === "number"
       ? theme.backgroundMusicVolume
       : 0.25;
+
+  updateAudioButton();
 }
 
 function applyTheme(theme) {
@@ -527,7 +558,7 @@ function applyTheme(theme) {
 
   if (!theme) {
     root.style.setProperty("--theme-text-color", "#ffffff");
-    root.style.setProperty("--theme-card-color", "rgba(30,30,30,0.90)");
+    root.style.setProperty("--theme-card-color", "rgba(30, 30, 30, 0.9)");
     root.style.setProperty("--theme-primary-color", "#5a5a5a");
     root.style.setProperty("--theme-secondary-color", "#333333");
     root.style.setProperty("--theme-button-color", "#444444");
@@ -545,7 +576,7 @@ function applyTheme(theme) {
   }
 
   root.style.setProperty("--theme-text-color", theme.textColor || "#ffffff");
-  root.style.setProperty("--theme-card-color", theme.cardColor || "rgba(30,30,30,0.90)");
+  root.style.setProperty("--theme-card-color", theme.cardColor || "rgba(30, 30, 30, 0.9)");
   root.style.setProperty("--theme-primary-color", theme.primaryColor || "#5a5a5a");
   root.style.setProperty("--theme-secondary-color", theme.secondaryColor || "#333333");
   root.style.setProperty("--theme-button-color", theme.buttonColor || "#444444");
@@ -575,22 +606,59 @@ function applyTheme(theme) {
 }
 
 async function tryPlayThemeAudio() {
-  if (!themeAudio || !themeAudio.src) return;
+  if (!themeAudio || !themeAudio.src) {
+    updateAudioButton();
+    return;
+  }
+
   try {
     await themeAudio.play();
-  } catch (e) {
-    console.log("Autoplay geblokkeerd:", e);
+  } catch (error) {
+    console.log("Autoplay geblokkeerd:", error);
   }
+
+  updateAudioButton();
+}
+
+function updateAudioButton() {
+  const btn = byId("toggleAudioButton");
+  if (!btn) return;
+
+  if (!themeAudio || !themeAudio.src) {
+    btn.style.display = "none";
+    return;
+  }
+
+  btn.style.display = "";
+  btn.innerText = themeAudio.paused ? "🔊 Geluid aan" : "🔇 Geluid uit";
+}
+
+async function toggleThemeAudio() {
+  if (!themeAudio || !themeAudio.src) return;
+
+  if (themeAudio.paused) {
+    try {
+      await themeAudio.play();
+    } catch (error) {
+      console.error("Audio kon niet starten:", error);
+    }
+  } else {
+    themeAudio.pause();
+  }
+
   updateAudioButton();
 }
 
 function saveLocalState() {
-  localStorage.setItem("cityEscapeState", JSON.stringify({
-    gameState,
-    route,
-    routeIndex,
-    currentCityKey
-  }));
+  localStorage.setItem(
+    "cityEscapeState",
+    JSON.stringify({
+      gameState,
+      route,
+      routeIndex,
+      currentCityKey
+    })
+  );
 }
 
 function loadLocalState() {
@@ -624,85 +692,6 @@ function setActiveCityUI(cityKey) {
   }
 
   if (titleEl) titleEl.innerText = `${city.name} Escape`;
-}
-
-function updateProgressUI() {
-  const targetTitle = byId("missionTargetTitle");
-  const progressText = byId("progressText");
-  const scoreText = byId("scoreText");
-  const progressBar = byId("progressBarFill");
-
-  const currentTarget = getActiveTarget();
-  const total = route.length || 1;
-  const currentStep = activeCollectibleSearch
-    ? routeIndex + 1
-    : Math.min(routeIndex + 1, total);
-
-  if (targetTitle) {
-    targetTitle.innerText = currentTarget?.name || "Volgend doel";
-  }
-
-  if (progressText) {
-    if (gameState.finished) {
-      progressText.innerText = "Alle checkpoints voltooid";
-    } else {
-      progressText.innerText = `Checkpoint ${Math.min(currentStep, total)} / ${total}`;
-    }
-  }
-
-  if (scoreText) {
-    scoreText.innerText = `${gameState.score || 0}`;
-  }
-
-  if (progressBar) {
-    const percent = total > 0 ? Math.min((routeIndex / total) * 100, 100) : 0;
-    progressBar.style.width = `${percent}%`;
-  }
-}
-
-function getIntroStoryText() {
-  if (currentGameType?.engine === "collectibles") {
-    return `Eeuwenlang leefden heksen verborgen tussen de mensen.
-
-Verspreid over deze plek liggen nog steeds voorwerpen die ooit deel uitmaakten van hun rituelen.
-
-Verzamel de sporen, vul jullie grimoire en ontdek wat hier werkelijk verborgen ligt.`;
-  }
-
-  if (currentGameType?.engine === "murder") {
-    return `Er is iets gebeurd...
-
-Jullie taak is om aanwijzingen te verzamelen, getuigenissen te analyseren en waarheid van misleiding te onderscheiden.
-
-Open jullie dossier en reconstrueer de feiten.`;
-  }
-
-  return `Jullie missie start nu.
-
-Werk samen, bereik elk checkpoint en probeer zoveel mogelijk punten te verzamelen.`;
-}
-
-function showIntroModal() {
-  const modal = byId("introModal");
-  const title = byId("introTitle");
-  const text = byId("introText");
-
-  if (!modal || !title || !text) return;
-
-  if (currentGameType?.engine === "collectibles") {
-    title.innerText = "Het grimoire wordt geopend";
-  } else if (currentGameType?.engine === "murder") {
-    title.innerText = "Het onderzoek begint";
-  } else {
-    title.innerText = "Jullie missie begint";
-  }
-
-  text.innerText = getIntroStoryText();
-  setModalVisible("introModal", true);
-}
-
-function closeIntroModal() {
-  setModalVisible("introModal", false);
 }
 
 function getCollectedEvidenceMap() {
@@ -871,27 +860,57 @@ function renderEvidenceGrid() {
 }
 
 function renderEvidenceUI() {
-  applyGameTypeUI();
+  updateInventoryTexts();
   renderEvidenceQuickBar();
   renderEvidenceGrid();
 }
 
+function updateInventoryTexts() {
+  const label = getInventoryLabel();
+  const openButton = byId("openEvidenceButton");
+  const intro = byId("evidenceIntroText");
+
+  if (openButton) {
+    openButton.innerText = currentGameType?.engine === "collectibles" ? "📖 Open grimoire" : `📂 Open ${label.toLowerCase()}`;
+    openButton.style.display = shouldUseInventoryUI() ? "" : "none";
+  }
+
+  if (intro) {
+    if (currentGameType?.engine === "collectibles") {
+      intro.innerText = "Alle gevonden voorwerpen verschijnen in jullie grimoire.";
+    } else if (currentGameType?.engine === "murder") {
+      intro.innerText = "Alle verzamelde bewijzen verschijnen in jullie dossier.";
+    } else {
+      intro.innerText = `Hier zie je de verzamelde items in jullie ${label.toLowerCase()}.`;
+    }
+  }
+}
+
+function getInventoryLabel() {
+  if (!currentGameType) return "Dossier";
+  if (currentGameType.engine === "collectibles") {
+    return currentGameType.engineConfig?.inventoryName || "Grimoire";
+  }
+  if (currentGameType.engine === "murder") {
+    return currentGameType.engineConfig?.bookName || "Dossier";
+  }
+  return currentGameType.engineConfig?.inventoryName || "Dossier";
+}
+
 function openEvidenceModal(evidenceId = "") {
   if (!shouldUseInventoryUI()) return;
-
   gameState.selectedEvidenceId = evidenceId || getSelectedEvidenceId();
   renderEvidenceUI();
-  setModalVisible("evidenceModal", true);
+  openModal("evidenceModal");
 }
 
 function closeEvidenceModal() {
-  setModalVisible("evidenceModal", false);
+  closeModal("evidenceModal");
 }
 
 function showFoundEvidenceModal(item) {
   if (!item || !shouldUseInventoryUI()) return;
 
-  const modal = byId("evidenceFoundModal");
   const icon = byId("foundEvidenceIcon");
   const name = byId("foundEvidenceName");
   const description = byId("foundEvidenceDescription");
@@ -909,11 +928,12 @@ function showFoundEvidenceModal(item) {
   }
 
   if (description) description.innerText = text;
-  setModalVisible("evidenceFoundModal", true);
+  openModal("evidenceFoundModal");
+  triggerSuccessFlash();
 }
 
 function closeFoundEvidenceModal() {
-  setModalVisible("evidenceFoundModal", false);
+  closeModal("evidenceFoundModal");
 }
 
 function collectEvidenceItem(item, options = {}) {
@@ -1037,15 +1057,16 @@ function updateCollectibleMarkerVisibility(lat, lng) {
 
     if (!collectibleMarker) {
       const iconHtml = item.icon || "✨";
-      collectibleIcon = L.divIcon({
-        className: "custom-emoji-icon",
-        html: `<div style="font-size:{COLLECTIBLE_ICON_SIZE}px; line-height:{COLLECTIBLE_ICON_SIZE}px; filter: drop-shadow(0 0 10px rgba(217,74,255,1));">${iconHtml}</div>`,
-        iconSize: [COLLECTIBLE_ICON_SIZE, COLLECTIBLE_ICON_SIZE],
-        iconAnchor: [17, COLLECTIBLE_ICON_SIZE],
-        popupAnchor: [0, -26]
-      });
+      collectibleMarker = L.marker(item.coords, {
+        icon: L.divIcon({
+          className: "custom-emoji-icon",
+          html: `<div style="font-size:${COLLECTIBLE_ICON_SIZE}px; line-height:${COLLECTIBLE_ICON_SIZE}px; filter: drop-shadow(0 0 10px rgba(217,74,255,1));">${iconHtml}</div>`,
+          iconSize: [COLLECTIBLE_ICON_SIZE, COLLECTIBLE_ICON_SIZE],
+          iconAnchor: [COLLECTIBLE_ICON_SIZE / 2, COLLECTIBLE_ICON_SIZE],
+          popupAnchor: [0, -26]
+        })
+      }).addTo(map);
 
-      collectibleMarker = L.marker(item.coords, { icon: collectibleIcon }).addTo(map);
       collectibleMarker.on("click", () => collectEvidenceItem(item));
       collectibleMarker.bindPopup(item.name || "Verborgen object");
     } else {
@@ -1054,7 +1075,9 @@ function updateCollectibleMarkerVisibility(lat, lng) {
     return;
   }
 
-  const shouldShow = visibility === "alwaysVisible" || (visibility === "showWhenNearby" && dist <= revealDistance);
+  const shouldShow =
+    visibility === "alwaysVisible" ||
+    (visibility === "showWhenNearby" && dist <= revealDistance);
 
   if (!shouldShow) {
     if (collectibleMarker) {
@@ -1066,15 +1089,16 @@ function updateCollectibleMarkerVisibility(lat, lng) {
 
   if (!collectibleMarker) {
     const iconHtml = item.icon || "✨";
-    collectibleIcon = L.divIcon({
-      className: "custom-emoji-icon",
-      html: `<div style="font-size:{COLLECTIBLE_ICON_SIZE}px; line-height:{COLLECTIBLE_ICON_SIZE}px; filter: drop-shadow(0 0 10px rgba(217,74,255,1));">${iconHtml}</div>`,
-      iconSize: [COLLECTIBLE_ICON_SIZE, COLLECTIBLE_ICON_SIZE],
-      iconAnchor: [17, COLLECTIBLE_ICON_SIZE],
-      popupAnchor: [0, -26]
-    });
+    collectibleMarker = L.marker(item.coords, {
+      icon: L.divIcon({
+        className: "custom-emoji-icon",
+        html: `<div style="font-size:${COLLECTIBLE_ICON_SIZE}px; line-height:${COLLECTIBLE_ICON_SIZE}px; filter: drop-shadow(0 0 10px rgba(217,74,255,1));">${iconHtml}</div>`,
+        iconSize: [COLLECTIBLE_ICON_SIZE, COLLECTIBLE_ICON_SIZE],
+        iconAnchor: [COLLECTIBLE_ICON_SIZE / 2, COLLECTIBLE_ICON_SIZE],
+        popupAnchor: [0, -26]
+      })
+    }).addTo(map);
 
-    collectibleMarker = L.marker(item.coords, { icon: collectibleIcon }).addTo(map);
     collectibleMarker.on("click", () => collectEvidenceItem(item));
     collectibleMarker.bindPopup(item.name || "Verborgen object");
   } else {
@@ -1118,7 +1142,8 @@ function startCollectibleSearch(cp) {
     }).addTo(map);
   }
 
-  setText("status", `Zoek het verborgen object in de aangeduide zone: ${item.name}.`);
+  setText("missionTargetTitle", item.name);
+  setText("status", "Nog " + Math.round(item.searchRadius || 30) + " meter tot doel.");
 
   closeQuestion();
   renderEvidenceUI();
@@ -1155,35 +1180,6 @@ function resetCheckpointMedia() {
     hideElement(imageEl, true);
     imageEl.alt = "";
   }
-}
-
-function updateAudioButton() {
-  const btn = byId("toggleAudioButton");
-  if (!btn) return;
-
-  if (!themeAudio || !themeAudio.src) {
-    btn.style.display = "none";
-    return;
-  }
-
-  btn.style.display = "";
-  btn.innerText = themeAudio.paused ? "🔊 Geluid aan" : "🔇 Geluid uit";
-}
-
-async function toggleThemeAudio() {
-  if (!themeAudio || !themeAudio.src) return;
-
-  if (themeAudio.paused) {
-    try {
-      await themeAudio.play();
-    } catch (error) {
-      console.error("Audio kon niet starten:", error);
-    }
-  } else {
-    themeAudio.pause();
-  }
-
-  updateAudioButton();
 }
 
 function buildExtendedStory(cp) {
@@ -1296,7 +1292,7 @@ function renderImagePuzzle(cp) {
     tile.style.width = "90px";
     tile.style.height = "90px";
     tile.style.backgroundImage = `url('${cp.imageUrl}')`;
-    tile.style.backgroundSize = `${gridSize * 90}px ${gridSize * 90}px`;
+    tile.style.backgroundSize = `${gridSize * 90px} ${gridSize * 90}px`;
     tile.style.backgroundPosition = `${-col * 90}px ${-row * 90}px`;
 
     tile.addEventListener("click", () => {
@@ -1346,7 +1342,9 @@ function attachPhotoListeners() {
     };
     reader.readAsDataURL(file);
 
-    if (photoStatus) photoStatus.innerText = "Foto gekozen. Klik op 'Controleer opdracht' om te verzenden.";
+    if (photoStatus) {
+      photoStatus.innerText = "Foto gekozen. Klik op 'Controleer opdracht' om te verzenden.";
+    }
   };
 }
 
@@ -1384,7 +1382,6 @@ function renderTaskUI(cp) {
     const container = byId("matchingContainer");
     if (container) {
       container.innerHTML = "";
-
       (cp.leftItems || []).forEach((leftItem, index) => {
         const row = document.createElement("div");
         row.className = "matching-row";
@@ -1413,15 +1410,14 @@ function renderTaskUI(cp) {
 
 function initMap() {
   if (!currentCityKey) return;
-
   const center = getCityRecord(currentCityKey).center;
+  const mapEl = byId("map");
+  if (!mapEl) return;
+
   if (map) {
     map.remove();
     map = null;
   }
-
-  const mapEl = byId("map");
-  if (!mapEl) return;
 
   map = L.map("map").setView(center, 16);
 
@@ -1555,11 +1551,9 @@ function checkDistance(lat, lng) {
   if (!target || !map) return;
 
   const dist = map.distance([lat, lng], target.coords);
-  setText("distanceText", "Afstand: " + Math.round(dist) + " m");
 
   if (activeCollectibleSearch) {
-    setText("status", "Zoek het verborgen object. Nog " + Math.round(dist) + " meter tot de zone.");
-
+    setText("status", "Nog " + Math.round(dist) + " meter tot doel.");
     updateCollectibleMarkerVisibility(lat, lng);
 
     const item = activeCollectibleSearch.item;
@@ -1586,23 +1580,23 @@ function checkDistance(lat, lng) {
 
   if (gameState.gatherMode) {
     if (dist < target.radius) {
-      setText("status", "Jullie zijn aangekomen op het verzamelpunt. Wacht op verdere instructies.");
+      setText("status", "Jullie zijn aangekomen bij het verzamelpunt.");
     } else {
-      setText("status", "Ga naar het verzamelpunt. Nog " + Math.round(dist) + " meter.");
+      setText("status", "Nog " + Math.round(dist) + " meter tot doel.");
     }
     return;
   }
 
   if (gameState.finished) {
     if (dist < target.radius) {
-      setText("status", "Jullie zijn aangekomen op het verzamelpunt. Proficiat.");
+      setText("status", "Jullie zijn aangekomen bij het verzamelpunt.");
     } else {
-      setText("status", "Proficiat. Ga nu naar het verzamelpunt. Nog " + Math.round(dist) + " meter.");
+      setText("status", "Nog " + Math.round(dist) + " meter tot doel.");
     }
     return;
   }
 
-    if (dist < target.radius) {
+  if (dist < target.radius) {
     setText("status", "Jullie zijn aangekomen bij " + target.name + ".");
     if (!questionOpen) openQuestion();
   } else {
@@ -1687,22 +1681,22 @@ function openQuestion() {
   renderCheckpointMedia(cp);
   setText("modalQuestion", cp.question);
   renderTaskUI(cp);
-  setModalVisible("questionModal", true);
+  openModal("questionModal");
 }
 
 function closeQuestion() {
-  setModalVisible("questionModal", false);
+  closeModal("questionModal");
   resetCheckpointMedia();
   questionOpen = false;
 }
 
 function showTeacherMessage(text) {
   setText("teacherMessageText", text);
-  setModalVisible("messageModal", true);
+  openModal("messageModal");
 }
 
 function closeTeacherMessage() {
-  setModalVisible("messageModal", false);
+  closeModal("messageModal");
 }
 
 function arraysEqual(a, b) {
@@ -1730,7 +1724,6 @@ function checkCurrentTask() {
   if (taskType === "matching") {
     const leftItems = cp.leftItems || [];
     const correctPairs = cp.correctPairs || {};
-
     return leftItems.every((leftItem, index) => {
       const select = byId("matching-" + index);
       if (!select) return false;
@@ -1832,11 +1825,7 @@ function generateGroupId() {
 
 async function getNextGroupNumber(cityKey) {
   const counterRef = ref(db, "meta/groupCounters/" + cityKey);
-
-  const result = await runTransaction(counterRef, (current) => {
-    return (current || 0) + 1;
-  });
-
+  const result = await runTransaction(counterRef, (current) => (current || 0) + 1);
   return result.snapshot.val();
 }
 
@@ -1876,6 +1865,89 @@ function syncGroup(lat = null, lng = null) {
   update(ref(db, "groups/" + gameState.groupId), payload);
 }
 
+function updateProgressUI() {
+  const targetTitle = byId("missionTargetTitle");
+  const progressText = byId("progressText");
+  const scoreText = byId("scoreText");
+
+  const currentTarget = getActiveTarget();
+  const total = route.length || 1;
+  const currentStep = activeCollectibleSearch ? routeIndex + 1 : Math.min(routeIndex + 1, total);
+
+  if (targetTitle) {
+    targetTitle.innerText = currentTarget?.name || "Checkpoint";
+  }
+
+  if (progressText) {
+    if (gameState.finished) {
+      progressText.innerText = "Checkpoint voltooid";
+    } else {
+      progressText.innerText = `Checkpoint ${Math.min(currentStep, total)} / ${total}`;
+    }
+  }
+
+  if (scoreText) {
+    scoreText.innerText = String(gameState.score || 0);
+  }
+}
+
+function triggerSuccessFlash() {
+  document.body.classList.add("success-flash");
+  setTimeout(() => {
+    document.body.classList.remove("success-flash");
+  }, 600);
+}
+
+function triggerErrorShake() {
+  const modal = byId("questionModal")?.querySelector(".modal-content");
+  if (!modal) return;
+  modal.classList.add("error-shake");
+  setTimeout(() => {
+    modal.classList.remove("error-shake");
+  }, 450);
+}
+
+function getIntroStoryText() {
+  if (currentGameType?.engine === "collectibles") {
+    return `Eeuwenlang leefden heksen verborgen tussen de mensen.
+
+Verspreid over deze plek liggen nog steeds voorwerpen die ooit deel uitmaakten van hun rituelen.
+
+Verzamel de sporen, vul jullie grimoire en ontdek wat hier werkelijk verborgen ligt.`;
+  }
+
+  if (currentGameType?.engine === "murder") {
+    return `Er is iets gebeurd...
+
+Jullie taak is om aanwijzingen te verzamelen, getuigenissen te analyseren en waarheid van misleiding te onderscheiden.`;
+  }
+
+  return `Jullie missie start nu.
+
+Werk samen, bereik elk checkpoint en probeer zoveel mogelijk punten te verzamelen.`;
+}
+
+function showIntroModal() {
+  if (gameState.introShown) return;
+
+  if (currentGameType?.engine === "collectibles") {
+    setText("introTitle", "Het grimoire wordt geopend");
+  } else if (currentGameType?.engine === "murder") {
+    setText("introTitle", "Het onderzoek begint");
+  } else {
+    setText("introTitle", "Jullie missie begint");
+  }
+
+  setText("introText", getIntroStoryText());
+  openModal("introModal");
+  gameState.introShown = true;
+  saveLocalState();
+}
+
+function closeIntroModal() {
+  closeModal("introModal");
+}
+
 function finishGame() {
   gameState.finished = true;
   gameState.gatherMode = false;
@@ -1885,20 +1957,6 @@ function finishGame() {
 
   const gather = getGatherCheckpoint(currentCityKey);
 
-  setText("modeText", "Spelmodus: afgerond");
-  setText("progressText", "Alle checkpoints afgerond");
-
-  if (hasModule("score")) {
-    setText("scoreText", "Eindscore: " + gameState.score);
-  }
-
-  let message = "Proficiat! 🎉\n\nJullie hebben alle checkpoints voltooid.";
-  if (hasModule("score")) message += "\n\nJullie score: " + gameState.score + " punten.";
-  if (shouldUseInventoryUI()) message += "\nVerzamelde items: " + Object.keys(getCollectedEvidenceMap()).length + ".";
-  message += "\n\nGa nu naar het verzamelpunt.";
-
-  alert(message);
-
   if (checkpointMarker) map.removeLayer(checkpointMarker);
   if (checkpointCircle) map.removeLayer(checkpointCircle);
 
@@ -1906,15 +1964,19 @@ function finishGame() {
   checkpointCircle = L.circle(gather.coords, { radius: gather.radius }).addTo(map);
 
   map.setView(gather.coords, 18);
-  setText("status", "Proficiat. Ga nu naar het verzamelpunt.");
+  setText("missionTargetTitle", gather.name);
+  setText("status", "Nog naar het verzamelpunt.");
+  updateProgressUI();
 
   if (lastKnownLat !== null && lastKnownLng !== null) {
     updateNavigation(lastKnownLat, lastKnownLng);
     updateRouteLine(lastKnownLat, lastKnownLng);
   }
-  updateProgressUI();
+
   saveLocalState();
   syncGroup();
+
+  alert(`Proficiat!\n\nJullie hebben alle checkpoints voltooid.\nScore: ${gameState.score}\nGa nu naar het verzamelpunt.`);
 }
 
 function nextCheckpoint() {
@@ -1942,30 +2004,27 @@ function handleCheckpointSuccess(cp, reason = "correct") {
 
   const shouldCollectDirectly =
     hasModule("collectibles") &&
-    (
-      unlockMode === "afterCorrect" ||
-      (unlockMode === "afterCorrectOrMaxTries" && reason === "correct")
-    );
+    (unlockMode === "afterCorrect" || (unlockMode === "afterCorrectOrMaxTries" && reason === "correct"));
 
   const shouldSearchAfter =
     hasModule("collectibles") &&
-    (
-      unlockMode === "searchZoneAfterCorrect" ||
-      (unlockMode === "searchZoneAfterCorrectOrMaxTries" && reason === "correct")
-    );
+    (unlockMode === "searchZoneAfterCorrect" || (unlockMode === "searchZoneAfterCorrectOrMaxTries" && reason === "correct"));
 
   if (shouldCollectDirectly) {
     const item = getCheckpointCollectible(cp, routeIndex);
     if (item) collectEvidenceItem(item);
+    triggerSuccessFlash();
     nextCheckpoint();
     return;
   }
 
   if (shouldSearchAfter) {
+    triggerSuccessFlash();
     startCollectibleSearch(cp);
     return;
   }
 
+  triggerSuccessFlash();
   nextCheckpoint();
 }
 
@@ -1982,10 +2041,7 @@ function handleWrongAttempt(cp) {
 
     const shouldCollectOnMax =
       hasModule("collectibles") &&
-      (
-        unlockMode === "afterMaxTries" ||
-        unlockMode === "afterCorrectOrMaxTries"
-      );
+      (unlockMode === "afterMaxTries" || unlockMode === "afterCorrectOrMaxTries");
 
     const shouldSearchOnMax =
       hasModule("collectibles") &&
@@ -2007,6 +2063,7 @@ function handleWrongAttempt(cp) {
   } else {
     setText("answerFeedback", "Niet juist, probeer opnieuw.");
     setText("triesFeedback", "Pogingen over: " + (maxTries - gameState.currentTries));
+    triggerErrorShake();
   }
 
   saveLocalState();
@@ -2030,10 +2087,12 @@ async function checkAnswer() {
       gameState.score += Number(cp.pointsCorrect || 0);
     }
     handleCheckpointSuccess(cp, "correct");
+    updateProgressUI();
     return;
   }
 
   handleWrongAttempt(cp);
+  updateProgressUI();
 }
 
 function loadCheckpoint() {
@@ -2051,11 +2110,11 @@ function loadCheckpoint() {
   checkpointMarker = L.marker(target.coords, { icon: markerIcon }).addTo(map).bindPopup(target.name);
   checkpointCircle = L.circle(target.coords, { radius: target.radius }).addTo(map);
 
-  updateProgressUI();
-
+  setText("status", "Nog naar het doel...");
   setText("answerFeedback", "");
   setText("triesFeedback", "");
   if (byId("modalAnswerInput")) byId("modalAnswerInput").value = "";
+
   currentPuzzleOrder = [];
   currentPuzzleSelectedIndex = null;
   resetPhotoTaskUI();
@@ -2068,6 +2127,7 @@ function loadCheckpoint() {
   closeQuestion();
   questionOpen = false;
   renderEvidenceUI();
+  updateProgressUI();
   saveLocalState();
 
   if (lastKnownLat !== null && lastKnownLng !== null) {
@@ -2096,8 +2156,8 @@ function listenTeacherCommands() {
       gameState.lastProcessedPointsAt = data.commandPointsAt;
       if (hasModule("score")) {
         gameState.score += Number(data.commandPointsValue || 0);
-        setText("scoreText", (gameState.finished ? "Eindscore: " : "Score: ") + gameState.score);
       }
+      updateProgressUI();
       saveLocalState();
       syncGroup();
     }
@@ -2133,7 +2193,7 @@ function listenGlobalCommands() {
       clearSearchCollectibleLayers();
       closeQuestion();
       loadCheckpoint();
-      setText("status", "De begeleider heeft iedereen naar het verzamelpunt gestuurd.");
+      setText("status", "Iedereen werd naar het verzamelpunt gestuurd.");
     }
 
     if (data.type === "resume") {
@@ -2252,17 +2312,15 @@ async function startGame() {
       return;
     }
 
-    const cityKey = citySnapshot.val();
-    currentCityKey = cityKey;
+    currentCityKey = citySnapshot.val();
 
-    await loadGameTypeForCity(cityKey);
-    setActiveCityUI(cityKey);
-    applyGameTypeUI();
+    await loadGameTypeForCity(currentCityKey);
+    setActiveCityUI(currentCityKey);
 
-    const theme = await loadThemeForCity(cityKey);
+    const theme = await loadThemeForCity(currentCityKey);
     applyTheme(theme);
 
-    currentCheckpoints = await loadCheckpointsForCity(cityKey);
+    currentCheckpoints = await loadCheckpointsForCity(currentCityKey);
 
     if (!currentCheckpoints || !currentCheckpoints.length) {
       setText("loginFeedback", "Er zijn nog geen checkpoints ingesteld voor deze stad.");
@@ -2290,6 +2348,7 @@ async function startGame() {
     gameState.sessionStartedAt = Date.now();
     gameState.collectedEvidence = {};
     gameState.selectedEvidenceId = "";
+    gameState.introShown = false;
 
     route = generateRoute(gameState.groupNumber, currentCheckpoints.length);
     routeIndex = 0;
@@ -2297,7 +2356,7 @@ async function startGame() {
 
     byId("loginCard")?.classList.add("hidden");
     byId("gameArea")?.classList.remove("hidden");
-    setText("teamDisplay", "Groep " + gameState.groupNumber + ": " + name);
+    setText("teamDisplay", `Groep ${gameState.groupNumber}: ${name}`);
 
     renderEvidenceUI();
     initMap();
@@ -2338,9 +2397,6 @@ async function restoreSessionIfPossible() {
 
   await loadGameTypeForCity(currentCityKey);
   setActiveCityUI(currentCityKey);
-  applyGameTypeUI();
-
-  await enableCompass();
 
   const theme = await loadThemeForCity(currentCityKey);
   applyTheme(theme);
@@ -2349,7 +2405,7 @@ async function restoreSessionIfPossible() {
 
   byId("loginCard")?.classList.add("hidden");
   byId("gameArea")?.classList.remove("hidden");
-  setText("teamDisplay", "Groep " + gameState.groupNumber + ": " + gameState.groupName);
+  setText("teamDisplay", `Groep ${gameState.groupNumber}: ${gameState.groupName}`);
 
   renderEvidenceUI();
   initMap();
@@ -2367,6 +2423,7 @@ async function restoreSessionIfPossible() {
   listenBroadcastMessages();
   listenHardReset();
   listenStudentRanking();
+  updateProgressUI();
 }
 
 async function handleCityChange(cityKey) {
@@ -2374,14 +2431,12 @@ async function handleCityChange(cityKey) {
 
   if (!cityKey) {
     currentGameType = normalizeGameType({ engine: "classic" });
-    applyGameTypeUI();
     applyTheme(null);
     return;
   }
 
   await loadGameTypeForCity(cityKey);
   setActiveCityUI(cityKey);
-  applyGameTypeUI();
 
   const theme = await loadThemeForCity(cityKey);
   applyTheme(theme);
@@ -2402,8 +2457,7 @@ async function bootstrapCurrentCity() {
   try {
     const snapshot = await get(ref(db, "control/currentCity"));
     if (snapshot.exists()) {
-      const cityKey = snapshot.val();
-      await handleCityChange(cityKey);
+      await handleCityChange(snapshot.val());
     }
   } catch (error) {
     console.error("Fout bij laden van actieve stad:", error);
@@ -2411,6 +2465,8 @@ async function bootstrapCurrentCity() {
 }
 
 function bindUI() {
+  ensureStudentUX();
+
   const startButton = byId("startButton");
   if (startButton) startButton.addEventListener("click", startGame);
 
@@ -2433,11 +2489,10 @@ function bindUI() {
   if (closeIntroButton) closeIntroButton.addEventListener("click", closeIntroModal);
 
   const toggleAudioButton = byId("toggleAudioButton");
-  if (toggleAudioButton) {
-    toggleAudioButton.addEventListener("click", toggleThemeAudio);
-  }
+  if (toggleAudioButton) toggleAudioButton.addEventListener("click", toggleThemeAudio);
 
   renderEvidenceUI();
+
   bootstrapCurrentCity().catch((error) => {
     console.error("Fout bij bootstrapCurrentCity:", error);
   });
@@ -2454,8 +2509,7 @@ onValue(ref(db, "cities"), (snapshot) => {
 });
 
 onValue(ref(db, "control/currentCity"), async (snapshot) => {
-  const cityKey = snapshot.val();
-  await handleCityChange(cityKey);
+  await handleCityChange(snapshot.val());
 });
 
 if (document.readyState === "loading") {
@@ -2463,5 +2517,3 @@ if (document.readyState === "loading") {
 } else {
   bindUI();
 }
-
-  updateAudioButton();
