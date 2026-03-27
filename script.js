@@ -13,6 +13,10 @@ import {
 
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
+const PLAYER_ICON_SIZE = 32;
+const CHECKPOINT_ICON_SIZE = 34;
+const GATHER_ICON_SIZE = 34;
+const COLLECTIBLE_ICON_SIZE = 38;
 
 let citiesCache = {};
 let currentGameType = null;
@@ -119,6 +123,18 @@ let collectibleIcon = L.divIcon({
   iconAnchor: [15, 30],
   popupAnchor: [0, -26]
 });
+
+function updateBodyModalState() {
+  const hasOpenModal = document.querySelector(".modal-overlay:not(.hidden)");
+  document.body.classList.toggle("modal-open", !!hasOpenModal);
+}
+
+function setModalVisible(id, visible) {
+  const el = byId(id);
+  if (!el) return;
+  el.classList.toggle("hidden", !visible);
+  updateBodyModalState();
+}
 
 function byId(id) {
   return document.getElementById(id);
@@ -449,27 +465,27 @@ function applyIcons(theme) {
   const gatherEmoji = theme?.iconGather || "⭐";
   const playerEmoji = theme?.iconPlayer || "🚶";
 
-  playerIcon = L.divIcon({
+    playerIcon = L.divIcon({
     className: "custom-emoji-icon",
-    html: `<div style="font-size:32px; line-height:32px;">${playerEmoji}</div>`,
-    iconSize: [32, 32],
-    iconAnchor: [16, 32],
+    html: `<div style="font-size:${PLAYER_ICON_SIZE}px; line-height:${PLAYER_ICON_SIZE}px;">${playerEmoji}</div>`,
+    iconSize: [PLAYER_ICON_SIZE, PLAYER_ICON_SIZE],
+    iconAnchor: [PLAYER_ICON_SIZE / 2, PLAYER_ICON_SIZE],
     popupAnchor: [0, -28]
   });
 
   checkpointIcon = L.divIcon({
     className: "custom-emoji-icon",
-    html: `<div style="font-size:30px; line-height:30px;">${checkpointEmoji}</div>`,
-    iconSize: [30, 30],
-    iconAnchor: [15, 30],
+    html: `<div style="font-size:${CHECKPOINT_ICON_SIZE}px; line-height:${CHECKPOINT_ICON_SIZE}px;">${checkpointEmoji}</div>`,
+    iconSize: [CHECKPOINT_ICON_SIZE, CHECKPOINT_ICON_SIZE],
+    iconAnchor: [CHECKPOINT_ICON_SIZE / 2, CHECKPOINT_ICON_SIZE],
     popupAnchor: [0, -26]
   });
 
   gatherIcon = L.divIcon({
     className: "custom-emoji-icon",
-    html: `<div style="font-size:30px; line-height:30px;">${gatherEmoji}</div>`,
-    iconSize: [30, 30],
-    iconAnchor: [15, 30],
+    html: `<div style="font-size:${GATHER_ICON_SIZE}px; line-height:${GATHER_ICON_SIZE}px;">${gatherEmoji}</div>`,
+    iconSize: [GATHER_ICON_SIZE, GATHER_ICON_SIZE],
+    iconAnchor: [GATHER_ICON_SIZE / 2, GATHER_ICON_SIZE],
     popupAnchor: [0, -26]
   });
 
@@ -565,6 +581,7 @@ async function tryPlayThemeAudio() {
   } catch (e) {
     console.log("Autoplay geblokkeerd:", e);
   }
+  updateAudioButton();
 }
 
 function saveLocalState() {
@@ -681,11 +698,11 @@ function showIntroModal() {
   }
 
   text.innerText = getIntroStoryText();
-  modal.classList.remove("hidden");
+  setModalVisible("introModal", true);
 }
 
 function closeIntroModal() {
-  byId("introModal")?.classList.add("hidden");
+  setModalVisible("introModal", false);
 }
 
 function getCollectedEvidenceMap() {
@@ -861,16 +878,14 @@ function renderEvidenceUI() {
 
 function openEvidenceModal(evidenceId = "") {
   if (!shouldUseInventoryUI()) return;
-  const modal = byId("evidenceModal");
-  if (!modal) return;
 
   gameState.selectedEvidenceId = evidenceId || getSelectedEvidenceId();
   renderEvidenceUI();
-  modal.classList.remove("hidden");
+  setModalVisible("evidenceModal", true);
 }
 
 function closeEvidenceModal() {
-  byId("evidenceModal")?.classList.add("hidden");
+  setModalVisible("evidenceModal", false);
 }
 
 function showFoundEvidenceModal(item) {
@@ -894,11 +909,11 @@ function showFoundEvidenceModal(item) {
   }
 
   if (description) description.innerText = text;
-  if (modal) modal.classList.remove("hidden");
+  setModalVisible("evidenceFoundModal", true);
 }
 
 function closeFoundEvidenceModal() {
-  byId("evidenceFoundModal")?.classList.add("hidden");
+  setModalVisible("evidenceFoundModal", false);
 }
 
 function collectEvidenceItem(item, options = {}) {
@@ -1024,9 +1039,9 @@ function updateCollectibleMarkerVisibility(lat, lng) {
       const iconHtml = item.icon || "✨";
       collectibleIcon = L.divIcon({
         className: "custom-emoji-icon",
-        html: `<div style="font-size:34px; line-height:34px; filter: drop-shadow(0 0 10px rgba(217,74,255,1));">${iconHtml}</div>`,
-        iconSize: [34, 34],
-        iconAnchor: [17, 34],
+        html: `<div style="font-size:{COLLECTIBLE_ICON_SIZE}px; line-height:{COLLECTIBLE_ICON_SIZE}px; filter: drop-shadow(0 0 10px rgba(217,74,255,1));">${iconHtml}</div>`,
+        iconSize: [COLLECTIBLE_ICON_SIZE, COLLECTIBLE_ICON_SIZE],
+        iconAnchor: [17, COLLECTIBLE_ICON_SIZE],
         popupAnchor: [0, -26]
       });
 
@@ -1053,9 +1068,9 @@ function updateCollectibleMarkerVisibility(lat, lng) {
     const iconHtml = item.icon || "✨";
     collectibleIcon = L.divIcon({
       className: "custom-emoji-icon",
-      html: `<div style="font-size:34px; line-height:34px; filter: drop-shadow(0 0 10px rgba(217,74,255,1));">${iconHtml}</div>`,
-      iconSize: [34, 34],
-      iconAnchor: [17, 34],
+      html: `<div style="font-size:{COLLECTIBLE_ICON_SIZE}px; line-height:{COLLECTIBLE_ICON_SIZE}px; filter: drop-shadow(0 0 10px rgba(217,74,255,1));">${iconHtml}</div>`,
+      iconSize: [COLLECTIBLE_ICON_SIZE, COLLECTIBLE_ICON_SIZE],
+      iconAnchor: [17, COLLECTIBLE_ICON_SIZE],
       popupAnchor: [0, -26]
     });
 
@@ -1140,6 +1155,35 @@ function resetCheckpointMedia() {
     hideElement(imageEl, true);
     imageEl.alt = "";
   }
+}
+
+function updateAudioButton() {
+  const btn = byId("toggleAudioButton");
+  if (!btn) return;
+
+  if (!themeAudio || !themeAudio.src) {
+    btn.style.display = "none";
+    return;
+  }
+
+  btn.style.display = "";
+  btn.innerText = themeAudio.paused ? "🔊 Geluid aan" : "🔇 Geluid uit";
+}
+
+async function toggleThemeAudio() {
+  if (!themeAudio || !themeAudio.src) return;
+
+  if (themeAudio.paused) {
+    try {
+      await themeAudio.play();
+    } catch (error) {
+      console.error("Audio kon niet starten:", error);
+    }
+  } else {
+    themeAudio.pause();
+  }
+
+  updateAudioButton();
 }
 
 function buildExtendedStory(cp) {
@@ -1643,22 +1687,22 @@ function openQuestion() {
   renderCheckpointMedia(cp);
   setText("modalQuestion", cp.question);
   renderTaskUI(cp);
-  byId("questionModal")?.classList.remove("hidden");
+  setModalVisible("questionModal", true);
 }
 
 function closeQuestion() {
-  byId("questionModal")?.classList.add("hidden");
+  setModalVisible("questionModal", false);
   resetCheckpointMedia();
   questionOpen = false;
 }
 
 function showTeacherMessage(text) {
   setText("teacherMessageText", text);
-  byId("messageModal")?.classList.remove("hidden");
+  setModalVisible("messageModal", true);
 }
 
 function closeTeacherMessage() {
-  byId("messageModal")?.classList.add("hidden");
+  setModalVisible("messageModal", false);
 }
 
 function arraysEqual(a, b) {
@@ -2388,6 +2432,11 @@ function bindUI() {
   const closeIntroButton = byId("closeIntroButton");
   if (closeIntroButton) closeIntroButton.addEventListener("click", closeIntroModal);
 
+  const toggleAudioButton = byId("toggleAudioButton");
+  if (toggleAudioButton) {
+    toggleAudioButton.addEventListener("click", toggleThemeAudio);
+  }
+
   renderEvidenceUI();
   bootstrapCurrentCity().catch((error) => {
     console.error("Fout bij bootstrapCurrentCity:", error);
@@ -2414,3 +2463,5 @@ if (document.readyState === "loading") {
 } else {
   bindUI();
 }
+
+  updateAudioButton();
