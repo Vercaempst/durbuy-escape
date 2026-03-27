@@ -609,6 +609,85 @@ function setActiveCityUI(cityKey) {
   if (titleEl) titleEl.innerText = `${city.name} Escape`;
 }
 
+function updateProgressUI() {
+  const targetTitle = byId("missionTargetTitle");
+  const progressText = byId("progressText");
+  const scoreText = byId("scoreText");
+  const progressBar = byId("progressBarFill");
+
+  const currentTarget = getActiveTarget();
+  const total = route.length || 1;
+  const currentStep = activeCollectibleSearch
+    ? routeIndex + 1
+    : Math.min(routeIndex + 1, total);
+
+  if (targetTitle) {
+    targetTitle.innerText = currentTarget?.name || "Volgend doel";
+  }
+
+  if (progressText) {
+    if (gameState.finished) {
+      progressText.innerText = "Alle checkpoints voltooid";
+    } else {
+      progressText.innerText = `Checkpoint ${Math.min(currentStep, total)} / ${total}`;
+    }
+  }
+
+  if (scoreText) {
+    scoreText.innerText = `${gameState.score || 0}`;
+  }
+
+  if (progressBar) {
+    const percent = total > 0 ? Math.min((routeIndex / total) * 100, 100) : 0;
+    progressBar.style.width = `${percent}%`;
+  }
+}
+
+function getIntroStoryText() {
+  if (currentGameType?.engine === "collectibles") {
+    return `Eeuwenlang leefden heksen verborgen tussen de mensen.
+
+Verspreid over deze plek liggen nog steeds voorwerpen die ooit deel uitmaakten van hun rituelen.
+
+Verzamel de sporen, vul jullie grimoire en ontdek wat hier werkelijk verborgen ligt.`;
+  }
+
+  if (currentGameType?.engine === "murder") {
+    return `Er is iets gebeurd...
+
+Jullie taak is om aanwijzingen te verzamelen, getuigenissen te analyseren en waarheid van misleiding te onderscheiden.
+
+Open jullie dossier en reconstrueer de feiten.`;
+  }
+
+  return `Jullie missie start nu.
+
+Werk samen, bereik elk checkpoint en probeer zoveel mogelijk punten te verzamelen.`;
+}
+
+function showIntroModal() {
+  const modal = byId("introModal");
+  const title = byId("introTitle");
+  const text = byId("introText");
+
+  if (!modal || !title || !text) return;
+
+  if (currentGameType?.engine === "collectibles") {
+    title.innerText = "Het grimoire wordt geopend";
+  } else if (currentGameType?.engine === "murder") {
+    title.innerText = "Het onderzoek begint";
+  } else {
+    title.innerText = "Jullie missie begint";
+  }
+
+  text.innerText = getIntroStoryText();
+  modal.classList.remove("hidden");
+}
+
+function closeIntroModal() {
+  byId("introModal")?.classList.add("hidden");
+}
+
 function getCollectedEvidenceMap() {
   if (!gameState.collectedEvidence || typeof gameState.collectedEvidence !== "object") {
     gameState.collectedEvidence = {};
@@ -1479,11 +1558,11 @@ function checkDistance(lat, lng) {
     return;
   }
 
-  if (dist < target.radius) {
+    if (dist < target.radius) {
     setText("status", "Jullie zijn aangekomen bij " + target.name + ".");
     if (!questionOpen) openQuestion();
   } else {
-    setText("status", "Nog " + Math.round(dist) + " meter tot " + target.name + ".");
+    setText("status", "Nog " + Math.round(dist) + " meter tot doel.");
   }
 }
 
@@ -1789,7 +1868,7 @@ function finishGame() {
     updateNavigation(lastKnownLat, lastKnownLng);
     updateRouteLine(lastKnownLat, lastKnownLng);
   }
-
+  updateProgressUI();
   saveLocalState();
   syncGroup();
 }
@@ -1928,27 +2007,7 @@ function loadCheckpoint() {
   checkpointMarker = L.marker(target.coords, { icon: markerIcon }).addTo(map).bindPopup(target.name);
   checkpointCircle = L.circle(target.coords, { radius: target.radius }).addTo(map);
 
-  if (gameState.gatherMode) {
-    setText("modeText", "Spelmodus: verzamelpunt");
-    setText("progressText", "Iedereen naar het verzamelpunt");
-  } else if (gameState.finished) {
-    setText("modeText", "Spelmodus: afgerond");
-    setText("progressText", "Alle checkpoints afgerond");
-  } else if (activeCollectibleSearch) {
-    setText("modeText", "Spelmodus: zoek object");
-    setText("progressText", `Zoek het object voor ${activeCollectibleSearch.checkpointName}`);
-  } else {
-    setText("modeText", `Spelmodus: ${currentGameType?.name || "normaal"}`);
-    setText("progressText", "Checkpoint " + (routeIndex + 1) + " / " + route.length);
-  }
-
-  const scoreEl = byId("scoreText");
-  if (hasModule("score")) {
-    setText("scoreText", (gameState.finished ? "Eindscore: " : "Score: ") + gameState.score);
-    if (scoreEl) scoreEl.style.display = "";
-  } else {
-    if (scoreEl) scoreEl.style.display = "none";
-  }
+  updateProgressUI();
 
   setText("answerFeedback", "");
   setText("triesFeedback", "");
@@ -2204,6 +2263,8 @@ async function startGame() {
     }, 150);
 
     await tryPlayThemeAudio();
+    showIntroModal();
+    updateProgressUI();
 
     syncGroup();
     startGPS();
@@ -2323,6 +2384,9 @@ function bindUI() {
 
   const closeFoundEvidenceButton = byId("closeFoundEvidenceButton");
   if (closeFoundEvidenceButton) closeFoundEvidenceButton.addEventListener("click", closeFoundEvidenceModal);
+
+  const closeIntroButton = byId("closeIntroButton");
+  if (closeIntroButton) closeIntroButton.addEventListener("click", closeIntroModal);
 
   renderEvidenceUI();
   bootstrapCurrentCity().catch((error) => {
