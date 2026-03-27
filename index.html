@@ -2,78 +2,78 @@
 <html lang="nl">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title id="appTitle">Questly</title>
-  <link rel="stylesheet" href="style.css?v=20260327-ux-2">
+  <link rel="stylesheet" href="style.css?v=20260327-top-ux-1">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 </head>
 <body>
-  <div class="magic-particles">
-    <span></span><span></span><span></span><span></span><span></span>
-    <span></span><span></span><span></span><span></span><span></span>
-    <span></span><span></span>
+  <div class="magic-particles" aria-hidden="true">
+    <span></span><span></span><span></span><span></span><span></span><span></span>
+    <span></span><span></span><span></span><span></span><span></span><span></span>
   </div>
 
-  <div class="container">
-    <div id="loginCard" class="card">
-      <h1>Questly</h1>
-      <p>Vul jullie groepsgegevens in om te starten.</p>
-      <input type="text" id="groupName" placeholder="Groepsnaam">
-      <input type="text" id="groupMembers" placeholder="Namen van de groepsleden">
+  <div class="container app-shell">
+    <div id="loginCard" class="card login-card">
+      <div class="brand-kicker">Questly</div>
+      <h1>Start jullie city game</h1>
+      <p class="muted">Vul jullie groepsgegevens in en ga op pad.</p>
+      <input id="groupName" type="text" placeholder="Naam van de groep">
+      <input id="groupMembers" type="text" placeholder="Namen van de groepsleden">
       <button id="startButton" type="button">Start spel</button>
       <p id="loginFeedback"></p>
     </div>
 
     <div id="gameArea" class="hidden">
-  <div class="player-layout">
-    <div class="card player-main-card">
-      <div class="player-topbar">
-        <h1 id="teamDisplay">Groep</h1>
-        <div style="display:flex; gap:8px; flex-wrap:wrap;">
-          <button id="openEvidenceButton" type="button" style="display:none;">📖 Open grimoire</button>
-          <button id="toggleAudioButton" type="button">🔇 Geluid uit</button>
+      <div class="player-layout">
+        <div class="card player-main-card glow-card">
+          <div class="player-topbar">
+            <h1 id="teamDisplay">Groep</h1>
+            <div class="toolbar-actions">
+              <button id="openEvidenceButton" type="button" style="display:none;">📖 Open grimoire</button>
+              <button id="toggleAudioButton" type="button" class="secondary-button">🔇 Geluid uit</button>
+            </div>
+          </div>
+
+          <div class="player-info-block">
+            <h2 id="missionTargetTitle">Checkpoint</h2>
+            <p id="status">Nog 0 meter tot doel.</p>
+          </div>
+
+          <div class="spacer-row"></div>
+
+          <p id="progressText" class="subtle-progress-text">Checkpoint 0 / 0</p>
+          <div id="gpsStatusWrap" class="stat-pill gps-pill">
+            <span id="gpsStatusDot" class="gps-dot"></span>
+            <span id="gpsStatusText">GPS-status: onbekend</span>
+          </div>
+
+          <div class="player-stats-row">
+            <div class="stat-pill score-pill">
+              <span class="stat-label">Score</span>
+              <span id="scoreText">0</span>
+            </div>
+          </div>
+
+          <div class="progress-bar-wrap slim-progress">
+            <div id="progressBarFill" class="progress-bar-fill" style="width:0%;"></div>
+          </div>
+        </div>
+
+        <div class="card player-score-card glow-card">
+          <h2>Topscore</h2>
+          <div id="studentRankingContainer">
+            <p>Nog geen scoregegevens beschikbaar.</p>
+          </div>
         </div>
       </div>
 
-      <div class="player-info-block">
-        <h2 id="missionTargetTitle">Checkpoint</h2>
-        <p id="status">Nog 0 meter tot doel.</p>
-      </div>
-
-      <div style="height:14px;"></div>
-
-      <p id="progressText" class="subtle-progress-text">Checkpoint 0 / 0</p>
-      <div id="gpsStatusWrap" class="stat-pill">
-        <span id="gpsStatusDot" class="gps-dot"></span>
-        <span id="gpsStatusText">GPS-status: onbekend</span>
-      </div>
-
-      <div class="player-stats-row">
-        <div class="stat-pill">
-          <span>Score</span>
-          <span id="scoreText">0</span>
-        </div>
-      </div>
-
-      <div class="progress-bar-wrap slim-progress">
-        <div id="progressBarFill" class="progress-bar-fill" style="width:0%;"></div>
-      </div>
-    </div>
-
-    <div class="card player-score-card">
-      <h2>Topscore</h2>
-      <div id="studentRankingContainer">
-        <p>Nog geen scoregegevens beschikbaar.</p>
-      </div>
+      <div id="map" class="game-map"></div>
     </div>
   </div>
 
-  <div id="map" style="height: 460px;"></div>
-</div>
-
-  <!-- Intro popup -->
   <div id="introModal" class="hidden modal-overlay">
-    <div class="modal-content card modal-animated intro-modal">
+    <div class="modal-content card modal-animated intro-modal glow-card">
       <div class="intro-glow"></div>
       <h2 id="introTitle">Jullie missie begint</h2>
       <p id="introText">Welkom in het verhaal...</p>
@@ -81,29 +81,19 @@
     </div>
   </div>
 
-  <!-- Vraagmodal -->
   <div id="questionModal" class="hidden modal-overlay">
-    <div class="modal-content card modal-animated">
+    <div class="modal-content card modal-animated glow-card">
       <h2 id="modalTitle">Checkpoint</h2>
+      <p id="modalStory" class="hidden checkpoint-story"></p>
 
-      <p id="modalStory" class="hidden"></p>
-
-      <iframe
-        id="modalVideo"
-        class="hidden"
-        width="100%"
-        height="220"
-        frameborder="0"
-        allowfullscreen>
-      </iframe>
-
-      <audio id="modalAudio" class="hidden" controls></audio>
-      <img id="modalImage" class="hidden" alt="" style="max-width:100%; border-radius:12px;">
+      <iframe id="modalVideo" class="hidden checkpoint-video" width="100%" height="220" frameborder="0" allowfullscreen></iframe>
+      <audio id="modalAudio" class="hidden checkpoint-audio" controls></audio>
+      <img id="modalImage" class="hidden checkpoint-image" alt="Afbeelding bij checkpoint">
 
       <p id="modalQuestion"></p>
 
       <div id="taskTextWrapper">
-        <input type="text" id="modalAnswerInput" placeholder="Typ hier jullie antwoord">
+        <input id="modalAnswerInput" type="text" placeholder="Typ hier jullie antwoord">
       </div>
 
       <div id="taskMultipleChoiceWrapper" class="hidden-task">
@@ -115,53 +105,52 @@
       </div>
 
       <div id="taskImagePuzzleWrapper" class="hidden-task">
-        <div id="puzzleGrid" style="display:grid; gap:4px;"></div>
+        <p class="muted">Klik op twee stukjes om ze te wisselen.</p>
+        <div id="puzzleGrid" class="puzzle-grid"></div>
       </div>
 
       <div id="taskPhotoWrapper" class="hidden-task">
-        <input type="file" id="photoInput" accept="image/*">
-        <img id="photoPreview" class="hidden-task" alt="Foto preview" style="max-width:100%; border-radius:12px;">
-        <p id="photoUploadStatus"></p>
+        <label for="photoInput" id="uploadBtn" class="uploadButton">📸 Neem of upload groepsfoto</label>
+        <input id="photoInput" type="file" accept="image/*" capture="environment" style="display:none">
+        <img id="photoPreview" class="hidden-task" alt="Voorbeeld van gekozen foto">
+        <p id="photoUploadStatus" class="upload-status"></p>
       </div>
 
       <p id="answerFeedback"></p>
       <p id="triesFeedback"></p>
-
       <button id="submitAnswerButton" type="button">Controleer opdracht</button>
     </div>
   </div>
 
-  <!-- Teacher bericht -->
   <div id="messageModal" class="hidden modal-overlay">
-    <div class="modal-content card modal-animated">
+    <div class="modal-content card modal-animated glow-card">
       <h2>Bericht van de leerkracht</h2>
-      <p id="teacherMessageText"></p>
+      <p id="teacherMessageText" class="teacher-message"></p>
       <button id="closeMessageButton" type="button">Sluiten</button>
     </div>
   </div>
 
-  <!-- Grimoire -->
   <div id="evidenceModal" class="hidden modal-overlay">
-    <div class="modal-content card modal-animated grimoire-modal">
+    <div class="modal-content card modal-animated grimoire-modal glow-card">
       <h2>Grimoire</h2>
       <p id="evidenceIntroText"></p>
+      <div id="evidenceGrid" class="evidence-slot-grid"></div>
 
-      <div id="evidenceGrid" class="button-grid"></div>
-
-      <div class="card">
-        <div id="evidenceDetailIcon" style="font-size:40px;">❓</div>
-        <h3 id="evidenceDetailName">Nog geen item geselecteerd</h3>
-        <p id="evidenceDetailDescription">Klik op een item om meer informatie te bekijken.</p>
-        <p id="evidenceDetailStatus">Status: onbekend</p>
+      <div class="evidence-detail-card">
+        <div id="evidenceDetailIcon" class="evidence-detail-icon">❓</div>
+        <div class="evidence-detail-content">
+          <h3 id="evidenceDetailName">Nog geen item geselecteerd</h3>
+          <p id="evidenceDetailDescription">Klik op een item om meer informatie te bekijken.</p>
+          <p id="evidenceDetailStatus">Status: onbekend</p>
+        </div>
       </div>
 
       <button id="closeEvidenceButton" type="button">Sluiten</button>
     </div>
   </div>
 
-  <!-- Nieuw item -->
   <div id="evidenceFoundModal" class="hidden modal-overlay">
-    <div class="modal-content card modal-animated loot-modal">
+    <div class="modal-content card modal-animated loot-modal glow-card evidence-found-content">
       <div id="foundEvidenceIcon" class="loot-icon">✨</div>
       <h2 id="foundEvidenceName">Nieuw item</h2>
       <p id="foundEvidenceDescription">Item toegevoegd.</p>
@@ -170,6 +159,6 @@
   </div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script type="module" src="script.js?v=20260327-ux-2"></script>
+  <script type="module" src="script.js?v=20260327-top-ux-1"></script>
 </body>
 </html>
