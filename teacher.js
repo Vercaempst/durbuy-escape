@@ -318,7 +318,7 @@ async function broadcastMessage() {
 }
 
 async function resetDatabase() {
-  const ok = confirm("Zeker dat je alle groepen wilt resetten?");
+  const ok = confirm("Zeker dat je alle groepen en tellers wilt resetten?");
   if (!ok) return;
 
   await set(ref(db, "control/globalReset"), {
@@ -326,7 +326,9 @@ async function resetDatabase() {
   });
 
   await remove(ref(db, "groups"));
-  byId("globalActionFeedback").innerText = "Reset uitgevoerd.";
+  await remove(ref(db, "meta/groupCounters"));
+
+  byId("globalActionFeedback").innerText = "Reset uitgevoerd, inclusief groepsnummers.";
 }
 
 function setupSearch() {
