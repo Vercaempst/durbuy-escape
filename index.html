@@ -25,48 +25,51 @@
     </div>
 
     <div id="gameArea" class="hidden">
-      <div class="player-layout">
-        <div class="card player-main-card">
-          <div class="player-topbar">
-            <h1 id="teamDisplay">Groep</h1>
-            <button id="openEvidenceButton" type="button" style="display:none;">📖 Open grimoire</button>
-          </div>
-
-          <div class="player-info-block">
-            <h2 id="missionTargetTitle">Checkpoint</h2>
-            <p id="status">Nog 0 meter tot doel.</p>
-          </div>
-
-          <div class="player-stats-row">
-            <div class="stat-pill">
-              <span class="stat-label">Score</span>
-              <span id="scoreText">0</span>
-            </div>
-
-          <div class="progress-bar-wrap slim-progress">
-            <div id="progressBarFill" class="progress-bar-fill" style="width:0%;"></div>
-          </div>
-
-          <p id="progressText" class="subtle-progress-text">Checkpoint 0 / 0</p>
-
-            <div id="gpsStatusWrap" class="stat-pill">
-              <span id="gpsStatusDot" class="gps-dot"></span>
-              <span id="gpsStatusText">GPS-status: onbekend</span>
-            </div>
-          </div>
-        </div>
-
-        <div class="card player-score-card">
-          <h2>Topscore</h2>
-          <div id="studentRankingContainer">
-            <p>Nog geen scoregegevens beschikbaar.</p>
-          </div>
+  <div class="player-layout">
+    <div class="card player-main-card">
+      <div class="player-topbar">
+        <h1 id="teamDisplay">Groep</h1>
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+          <button id="openEvidenceButton" type="button" style="display:none;">📖 Open grimoire</button>
+          <button id="toggleAudioButton" type="button">🔇 Geluid uit</button>
         </div>
       </div>
 
-      <div id="map" style="height: 460px;"></div>
+      <div class="player-info-block">
+        <h2 id="missionTargetTitle">Checkpoint</h2>
+        <p id="status">Nog 0 meter tot doel.</p>
+      </div>
+
+      <div style="height:14px;"></div>
+
+      <p id="progressText" class="subtle-progress-text">Checkpoint 0 / 0</p>
+      <div id="gpsStatusWrap" class="stat-pill">
+        <span id="gpsStatusDot" class="gps-dot"></span>
+        <span id="gpsStatusText">GPS-status: onbekend</span>
+      </div>
+
+      <div class="player-stats-row">
+        <div class="stat-pill">
+          <span>Score</span>
+          <span id="scoreText">0</span>
+        </div>
+      </div>
+
+      <div class="progress-bar-wrap slim-progress">
+        <div id="progressBarFill" class="progress-bar-fill" style="width:0%;"></div>
+      </div>
+    </div>
+
+    <div class="card player-score-card">
+      <h2>Topscore</h2>
+      <div id="studentRankingContainer">
+        <p>Nog geen scoregegevens beschikbaar.</p>
+      </div>
     </div>
   </div>
+
+  <div id="map" style="height: 460px;"></div>
+</div>
 
   <!-- Intro popup -->
   <div id="introModal" class="hidden modal-overlay">
