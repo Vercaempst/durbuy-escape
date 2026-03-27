@@ -2575,33 +2575,45 @@ onValue(ref(db, "control/currentCity"), async (snapshot) => {
   await handleCityChange(cityKey);
 });
 
-byId("startButton").onclick = startGame;
-byId("submitAnswerButton").onclick = checkAnswer;
+function bindUI() {
+  const startButton = byId("startButton");
+  if (startButton) {
+    startButton.addEventListener("click", startGame);
+  }
 
-const closeMessageButton = byId("closeMessageButton");
-if (closeMessageButton) {
-  closeMessageButton.onclick = closeTeacherMessage;
+  const submitAnswerButton = byId("submitAnswerButton");
+  if (submitAnswerButton) {
+    submitAnswerButton.addEventListener("click", checkAnswer);
+  }
+
+  const closeMessageButton = byId("closeMessageButton");
+  if (closeMessageButton) {
+    closeMessageButton.addEventListener("click", closeTeacherMessage);
+  }
+
+  const openEvidenceButton = byId("openEvidenceButton");
+  if (openEvidenceButton) {
+    openEvidenceButton.addEventListener("click", () => openEvidenceModal());
+  }
+
+  const closeEvidenceButton = byId("closeEvidenceButton");
+  if (closeEvidenceButton) {
+    closeEvidenceButton.addEventListener("click", closeEvidenceModal);
+  }
+
+  const closeFoundEvidenceButton = byId("closeFoundEvidenceButton");
+  if (closeFoundEvidenceButton) {
+    closeFoundEvidenceButton.addEventListener("click", closeFoundEvidenceModal);
+  }
+
+  renderEvidenceUI();
+  bootstrapCurrentCity().catch((error) => {
+    console.error("Fout bij bootstrapCurrentCity:", error);
+  });
 }
 
-const openEvidenceButton = byId("openEvidenceButton");
-if (openEvidenceButton) {
-  openEvidenceButton.onclick = () => openEvidenceModal();
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", bindUI);
+} else {
+  bindUI();
 }
-
-const closeEvidenceButton = byId("closeEvidenceButton");
-if (closeEvidenceButton) {
-  closeEvidenceButton.onclick = closeEvidenceModal;
-}
-
-const closeFoundEvidenceButton = byId("closeFoundEvidenceButton");
-if (closeFoundEvidenceButton) {
-  closeFoundEvidenceButton.onclick = closeFoundEvidenceModal;
-}
-
-const closeGameIntroButton = byId("closeGameIntroButton");
-if (closeGameIntroButton) {
-  closeGameIntroButton.onclick = closeGameIntro;
-}
-
-renderEvidenceUI();
-bootstrapCurrentCity();
