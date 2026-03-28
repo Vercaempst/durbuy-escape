@@ -3,13 +3,13 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Speltype beheer</title>
-  <link rel="stylesheet" href="style.css?v=20260326-speltypes-2">
+  <title>Speltypes beheren</title>
+  <link rel="stylesheet" href="style.css?v=20260328-builder-1">
 </head>
 <body>
   <div id="loginScreen" class="container">
     <div class="card">
-      <h1>Speltype beheer</h1>
+      <h1>Speltypes beheren</h1>
       <h2>Login vereist</h2>
       <input type="email" id="email" placeholder="Email">
       <input type="password" id="password" placeholder="Wachtwoord">
@@ -20,7 +20,7 @@
   <div id="appContent" style="display:none;">
     <div class="container">
       <div class="card">
-        <h1>Speltype beheer</h1>
+        <h1>Speltypes beheren</h1>
         <p id="loginStatus"></p>
         <div class="button-grid">
           <button onclick="logout()">Logout</button>
@@ -29,334 +29,399 @@
       </div>
 
       <div class="card">
-        <h2>Bewaarde speltypes</h2>
-        <select id="speltypeSelector"></select>
+        <h2>Speltype kiezen</h2>
+        <select id="gameTypeSelector"></select>
 
         <div class="button-grid">
-          <button id="loadSpeltypeButton">Laad speltype</button>
-          <button id="newSpeltypeButton">Nieuw speltype</button>
-          <button id="deleteSpeltypeButton">Verwijder speltype</button>
+          <button id="newGameTypeButton" type="button">Nieuw speltype</button>
+          <button id="saveGameTypeButton" type="button">Speltype opslaan</button>
+          <button id="deleteGameTypeButton" type="button">Speltype verwijderen</button>
         </div>
+
+        <p id="gameTypeStatus"></p>
       </div>
 
       <div class="card">
-        <h2>Algemene info</h2>
+        <h2>Basis</h2>
 
-        <input id="speltypeKeyInput" type="text" placeholder="Speltype key, bv. collectibles_heksen">
-        <input id="speltypeNameInput" type="text" placeholder="Naam van speltype">
-        <textarea id="speltypeDescription" placeholder="Korte beschrijving van dit speltype"></textarea>
+        <label for="gameTypeId">Interne ID</label>
+        <input id="gameTypeId" type="text" placeholder="bv. de_mol">
 
-        <div class="button-grid">
-          <div>
-            <label for="speltypeEngine">Basis-engine</label>
-            <select id="speltypeEngine">
-              <option value="classic">Klassiek</option>
-              <option value="collectibles">Collectibles</option>
-              <option value="murder">Moordonderzoek</option>
-              <option value="mole">De mol</option>
-              <option value="hunters">Jagers</option>
-            </select>
-          </div>
+        <p class="small-note">
+          Unieke technische naam van het speltype. Gebruik best kleine letters en underscores.
+        </p>
 
-          <div>
-            <label for="inventoryLabel">Naam dossier / inventaris</label>
-            <input id="inventoryLabel" type="text" placeholder="bv. Heksendossier">
-          </div>
-        </div>
+        <label for="gameTypeName">Naam speltype</label>
+        <input id="gameTypeName" type="text" placeholder="bv. De mol">
 
-        <div class="button-grid">
-          <div>
-            <label for="storyLabel">Naam verhaallaag</label>
-            <input id="storyLabel" type="text" placeholder="bv. Onderzoekslaag">
-          </div>
+        <p class="small-note">
+          Deze naam zien leerkrachten in de admin.
+        </p>
 
-          <div>
-            <label for="teamRoleLabel">Naam teamrol</label>
-            <input id="teamRoleLabel" type="text" placeholder="bv. Onderzoeksteam">
-          </div>
-        </div>
+        <label for="gameTypeDescription">Beschrijving</label>
+        <textarea id="gameTypeDescription" placeholder="Korte uitleg van dit speltype"></textarea>
+
+        <p class="small-note">
+          Korte uitleg voor leerkrachten zodat het meteen duidelijk is waarvoor dit speltype dient.
+        </p>
+
+        <label for="gameTypeEngine">Engine</label>
+        <select id="gameTypeEngine">
+          <option value="classic">Klassiek</option>
+          <option value="collectibles">Collectibles / schatjacht</option>
+          <option value="murder">Moordonderzoek</option>
+          <option value="mol">De mol</option>
+          <option value="hunters">Jagers</option>
+          <option value="race">Race tegen de klok</option>
+          <option value="exploration">Verkenning</option>
+          <option value="custom">Aangepast</option>
+        </select>
+
+        <p class="small-note">
+          De engine bepaalt de algemene stijl van het speltype. De modules hieronder bepalen wat effectief actief is.
+        </p>
       </div>
 
       <div class="card">
-        <h2>Actieve modules</h2>
+        <h2>Modules</h2>
 
         <div class="checkbox-grid">
-          <label><input id="moduleQuestions" type="checkbox" checked> Vragen en antwoorden</label>
-          <label><input id="moduleStory" type="checkbox"> Verhaaltekst per checkpoint</label>
-          <label><input id="moduleInventory" type="checkbox"> Inventaris / dossier</label>
-          <label><input id="moduleCollectibles" type="checkbox"> Collectibles / bewijsstukken</label>
-          <label><input id="moduleSearchZones" type="checkbox"> Zoekzones op kaart</label>
-          <label><input id="moduleHiddenReveal" type="checkbox"> Verborgen object pas zichtbaar dichtbij</label>
-          <label><input id="moduleClickableMapItems" type="checkbox"> Object aanklikken op kaart</label>
-          <label><input id="moduleDialogs" type="checkbox"> Dialogen / getuigenissen</label>
-          <label><input id="moduleEvidenceBook" type="checkbox"> Bewijsboek</label>
-          <label><input id="moduleFingerprintSystem" type="checkbox"> Afdrukken / forensische sporen</label>
-          <label><input id="moduleFakeClues" type="checkbox"> Valse sporen</label>
-          <label><input id="moduleSecretRoles" type="checkbox"> Geheime rollen</label>
-          <label><input id="moduleSabotage" type="checkbox"> Sabotageacties</label>
-          <label><input id="moduleRoleSwitch" type="checkbox"> Rollen wisselen tijdens spel</label>
-          <label><input id="moduleChaseMechanic" type="checkbox"> Jagen / opgejaagd worden</label>
-          <label><input id="moduleScore" type="checkbox" checked> Score</label>
-          <label><input id="moduleRanking" type="checkbox" checked> Live scorebord</label>
-          <label><input id="moduleTeacherControls" type="checkbox" checked> Teacher controls</label>
+          <label>
+            <input type="checkbox" id="modNavigation">
+            Navigatie
+          </label>
+          <label>
+            <input type="checkbox" id="modQuestions">
+            Vragen / opdrachten
+          </label>
+          <label>
+            <input type="checkbox" id="modScore">
+            Score
+          </label>
+          <label>
+            <input type="checkbox" id="modRanking">
+            Live ranking
+          </label>
+          <label>
+            <input type="checkbox" id="modStory">
+            Verhaallaag
+          </label>
+          <label>
+            <input type="checkbox" id="modDialogs">
+            Dialogen / NPC-tekst
+          </label>
+          <label>
+            <input type="checkbox" id="modInventory">
+            Inventory / rugzak / grimoire
+          </label>
+          <label>
+            <input type="checkbox" id="modCollectibles">
+            Collectibles
+          </label>
+          <label>
+            <input type="checkbox" id="modSearchZones">
+            Zoekzones
+          </label>
+          <label>
+            <input type="checkbox" id="modHiddenReveal">
+            Object pas zichtbaar dichtbij
+          </label>
+          <label>
+            <input type="checkbox" id="modClickableItems">
+            Object aanklikken om te nemen
+          </label>
+          <label>
+            <input type="checkbox" id="modEvidenceBook">
+            Bewijsboek / dossier
+          </label>
+          <label>
+            <input type="checkbox" id="modFingerprints">
+            Vingerafdrukken / sporen
+          </label>
+          <label>
+            <input type="checkbox" id="modFakeClues">
+            Valse sporen
+          </label>
+          <label>
+            <input type="checkbox" id="modSecretRoles">
+            Geheime rollen
+          </label>
+          <label>
+            <input type="checkbox" id="modSabotage">
+            Sabotage
+          </label>
+          <label>
+            <input type="checkbox" id="modRoleSwitch">
+            Rollen kunnen wisselen
+          </label>
+          <label>
+            <input type="checkbox" id="modChase">
+            Jacht / achtervolging
+          </label>
+          <label>
+            <input type="checkbox" id="modTeacherControls">
+            Teacher controls
+          </label>
+        </div>
+
+        <div class="info-list">
+          <p><strong>Navigatie</strong> toont kaart, richting en afstand naar doelen.</p>
+          <p><strong>Vragen / opdrachten</strong> laat leerlingen inhoudelijke checkpoints oplossen.</p>
+          <p><strong>Score</strong> activeert punten verdienen en aftrekken.</p>
+          <p><strong>Live ranking</strong> toont een klassement tijdens het spel.</p>
+          <p><strong>Verhaallaag</strong> voegt sfeer- en verhaaltekst toe.</p>
+          <p><strong>Dialogen</strong> toont getuigenissen of NPC-fragmenten.</p>
+          <p><strong>Inventory</strong> laat leerlingen items bekijken.</p>
+          <p><strong>Collectibles</strong> maakt verzamelobjecten actief.</p>
+          <p><strong>Zoekzones</strong> laat objecten via een zone zoeken.</p>
+          <p><strong>Object pas zichtbaar dichtbij</strong> zorgt voor reveal pas in de buurt.</p>
+          <p><strong>Object aanklikken</strong> maakt verzamelen interactiever.</p>
+          <p><strong>Bewijsboek</strong> is bedoeld voor onderzoek-achtige speltypes.</p>
+          <p><strong>Vingerafdrukken</strong> maakt forensische sporen mogelijk.</p>
+          <p><strong>Valse sporen</strong> laat misleidende aanwijzingen toe.</p>
+          <p><strong>Geheime rollen</strong> is nodig voor De mol of andere verborgen rollen.</p>
+          <p><strong>Sabotage</strong> maakt het mogelijk om andere groepen te hinderen.</p>
+          <p><strong>Rollen kunnen wisselen</strong> laat geheime of zichtbare rollen veranderen tijdens het spel.</p>
+          <p><strong>Jacht / achtervolging</strong> is bedoeld voor jagers-achtige speltypes.</p>
+          <p><strong>Teacher controls</strong> laat de leerkracht actief ingrijpen.</p>
         </div>
       </div>
 
       <div class="card">
-        <h2>Algemene spelinstellingen</h2>
+        <h2>Spelregels</h2>
+
+        <label for="settingCheckpointFlow">Volgorde checkpoints</label>
+        <select id="settingCheckpointFlow">
+          <option value="rotatingRoute">Elke groep start op een ander checkpoint</option>
+          <option value="route">Vaste route voor iedereen</option>
+          <option value="freeRoam">Vrije volgorde</option>
+        </select>
+
+        <p class="small-note">
+          Bepaalt of groepen hetzelfde traject volgen of op verschillende plaatsen starten.
+        </p>
+
+        <label for="settingCollectibleUnlock">Collectible vrijspelen</label>
+        <select id="settingCollectibleUnlock">
+          <option value="none">Niet gebruiken</option>
+          <option value="afterCorrect">Na juist antwoord meteen krijgen</option>
+          <option value="afterMaxTries">Na maximum aantal pogingen krijgen</option>
+          <option value="afterCorrectOrMaxTries">Na juist antwoord of maximum aantal pogingen</option>
+          <option value="searchZoneAfterCorrect">Na juist antwoord via zoekzone</option>
+          <option value="searchZoneAfterCorrectOrMaxTries">Via zoekzone na juist antwoord of maximum aantal pogingen</option>
+        </select>
+
+        <p class="small-note">
+          Bepaalt wanneer een collectible beschikbaar wordt.
+        </p>
+
+        <label for="settingMapVisibility">Zichtbaarheid object op kaart</label>
+        <select id="settingMapVisibility">
+          <option value="none">Niet tonen</option>
+          <option value="blurZone">Alleen via zoekzone</option>
+          <option value="showWhenNearby">Pas tonen als je dichtbij bent</option>
+          <option value="alwaysVisible">Altijd tonen</option>
+        </select>
+
+        <p class="small-note">
+          Bepaalt hoe zichtbaar het object is voor de leerlingen.
+        </p>
+
+        <label for="settingFinalObjective">Einddoel</label>
+        <select id="settingFinalObjective">
+          <option value="gatherPoint">Eindigen aan verzamelpunt</option>
+          <option value="lastCheckpoint">Laatste checkpoint is einde</option>
+          <option value="customFinale">Later eigen finale</option>
+        </select>
+
+        <p class="small-note">
+          Bepaalt hoe het spel afgesloten wordt.
+        </p>
 
         <div class="button-grid">
           <div>
-            <label for="checkpointFlowType">Checkpointflow</label>
-            <select id="checkpointFlowType">
-              <option value="route">Vaste route</option>
-              <option value="rotatingRoute">Andere start per groep</option>
-              <option value="freeRoam">Vrije verkenning</option>
-            </select>
+            <label for="settingSearchRadius">Zoekradius</label>
+            <input id="settingSearchRadius" type="number" value="30" placeholder="bv. 30">
+            <p class="small-note">Radius van een zoekzone in meter.</p>
           </div>
 
           <div>
-            <label for="collectibleUnlockMode">Collectible wordt vrijgespeeld via</label>
-            <select id="collectibleUnlockMode">
-              <option value="none">Niet van toepassing</option>
-              <option value="afterCorrect">Na juist antwoord</option>
-              <option value="afterMaxTries">Na maximum aantal pogingen</option>
-              <option value="afterCorrectOrMaxTries">Na juist antwoord of maximum pogingen</option>
-              <option value="searchZoneAfterCorrect">Verborgen zoekzone na juist antwoord</option>
-              <option value="searchZoneAfterCorrectOrMaxTries">Verborgen zoekzone na juist antwoord of maximum pogingen</option>
-            </select>
+            <label for="settingRevealDistance">Reveal distance</label>
+            <input id="settingRevealDistance" type="number" value="15" placeholder="bv. 15">
+            <p class="small-note">Afstand waarop een object zichtbaar mag worden.</p>
+          </div>
+
+          <div>
+            <label for="settingMaxTries">Maximum pogingen</label>
+            <input id="settingMaxTries" type="number" value="3" placeholder="bv. 3">
+            <p class="small-note">Aantal pogingen voordat de alternatieve flow start.</p>
           </div>
         </div>
 
-        <div class="button-grid">
-          <div>
-            <label for="mapCollectibleVisibility">Zichtbaarheid object op kaart</label>
-            <select id="mapCollectibleVisibility">
-              <option value="none">Niet zichtbaar</option>
-              <option value="blurZone">Wazige cirkel</option>
-              <option value="showWhenNearby">Pas zichtbaar als leerling dichtbij is</option>
-              <option value="alwaysVisible">Altijd zichtbaar</option>
-            </select>
-          </div>
+        <label for="settingScoreMode">Scoremodus</label>
+        <select id="settingScoreMode">
+          <option value="normal">Normaal</option>
+          <option value="competitive">Competitief</option>
+          <option value="light">Licht</option>
+        </select>
 
-          <div>
-            <label for="finalObjectiveType">Finale type</label>
-            <select id="finalObjectiveType">
-              <option value="none">Geen aparte finale</option>
-              <option value="gatherPoint">Eindigen aan verzamelpunt</option>
-              <option value="finalQuestion">Eindvraag</option>
-              <option value="accusation">Beschuldiging / ontmaskering</option>
-            </select>
-          </div>
-        </div>
-
-        <div class="button-grid">
-          <div>
-            <label for="searchZoneRadius">Radius zoekzone</label>
-            <input id="searchZoneRadius" type="number" min="1" placeholder="bv. 30">
-          </div>
-
-          <div>
-            <label for="nearbyRevealDistance">Afstand voor zichtbaarheid</label>
-            <input id="nearbyRevealDistance" type="number" min="1" placeholder="bv. 15">
-          </div>
-        </div>
-
-        <div class="button-grid">
-          <div>
-            <label for="maxTriesDefault">Standaard maximum pogingen</label>
-            <input id="maxTriesDefault" type="number" min="1" placeholder="bv. 3">
-          </div>
-
-          <div>
-            <label for="scoreMode">Scoreverwerking</label>
-            <select id="scoreMode">
-              <option value="normal">Normaal</option>
-              <option value="teamVsTeam">Team versus team</option>
-              <option value="hiddenRole">Met verborgen rollen</option>
-              <option value="survival">Overleving / achtervolging</option>
-            </select>
-          </div>
-        </div>
+        <p class="small-note">
+          Handige instelling om later verschillen in puntentelling te maken.
+        </p>
       </div>
 
-      <div class="card engine-panel" id="engineClassicPanel">
-        <h2>Instellingen voor Klassiek</h2>
-
-        <div class="button-grid">
-          <div>
-            <label for="classicShowQuestionFirst">Vraag direct tonen</label>
-            <select id="classicShowQuestionFirst">
-              <option value="yes">Ja</option>
-              <option value="no">Nee</option>
-            </select>
-          </div>
-
-          <div>
-            <label for="classicUseCheckpointStories">Story per checkpoint</label>
-            <select id="classicUseCheckpointStories">
-              <option value="no">Nee</option>
-              <option value="yes">Ja</option>
-            </select>
-          </div>
-        </div>
-      </div>
-
-      <div class="card engine-panel hidden" id="engineCollectiblesPanel">
-        <h2>Instellingen voor Collectibles</h2>
-
-        <div class="button-grid">
-          <div>
-            <label for="collectiblesTheme">Thema collectibles</label>
-            <select id="collectiblesTheme">
-              <option value="heksen">Heksen</option>
-              <option value="schatten">Schatten</option>
-              <option value="mysterie">Mysterie</option>
-              <option value="eigen">Eigen invulling</option>
-            </select>
-          </div>
-
-          <div>
-            <label for="collectiblesInventoryName">Naam inventaris</label>
-            <input id="collectiblesInventoryName" type="text" placeholder="bv. Heksendossier">
-          </div>
-        </div>
-
-        <div class="button-grid">
-          <div>
-            <label for="collectiblesUseBlurZones">Werk met wazige cirkels</label>
-            <select id="collectiblesUseBlurZones">
-              <option value="yes">Ja</option>
-              <option value="no">Nee</option>
-            </select>
-          </div>
-
-          <div>
-            <label for="collectiblesRequireClickToCollect">Object aanklikken om te nemen</label>
-            <select id="collectiblesRequireClickToCollect">
-              <option value="yes">Ja</option>
-              <option value="no">Nee</option>
-            </select>
-          </div>
-        </div>
-      </div>
-
-      <div class="card engine-panel hidden" id="engineMurderPanel">
-        <h2>Instellingen voor Moordonderzoek</h2>
-
-        <div class="button-grid">
-          <div>
-            <label for="murderBookName">Naam bewijsboek</label>
-            <input id="murderBookName" type="text" placeholder="bv. Onderzoeksdossier">
-          </div>
-
-          <div>
-            <label for="murderFinaleType">Finale</label>
-            <select id="murderFinaleType">
-              <option value="accusation">Dader aanduiden</option>
-              <option value="evidenceReconstruction">Bewijzen reconstrueren</option>
-              <option value="suspectRanking">Verdachten rangschikken</option>
-            </select>
-          </div>
-        </div>
+      <div class="card">
+        <h2>Rollen</h2>
 
         <div class="checkbox-grid">
-          <label><input id="murderUseDialogs" type="checkbox" checked> Fictieve dialogen</label>
-          <label><input id="murderUseFingerprints" type="checkbox"> Voorwerpen met of zonder afdrukken</label>
-          <label><input id="murderUseFakeEvidence" type="checkbox"> Valse sporen</label>
-          <label><input id="murderUseSuspects" type="checkbox" checked> Verdachtensysteem</label>
+          <label>
+            <input type="checkbox" id="rolesEnabled">
+            Rollen actief
+          </label>
+          <label>
+            <input type="checkbox" id="rolesAutoAssign">
+            Rollen automatisch toewijzen
+          </label>
+          <label>
+            <input type="checkbox" id="rolesRotationEnabled">
+            Rollen laten wisselen
+          </label>
         </div>
-      </div>
 
-      <div class="card engine-panel hidden" id="engineMolePanel">
-        <h2>Instellingen voor De mol</h2>
+        <label for="rolesType">Type rol</label>
+        <select id="rolesType">
+          <option value="none">Geen</option>
+          <option value="secret">Geheime rol</option>
+          <option value="public">Zichtbare rol</option>
+        </select>
+
+        <p class="small-note">
+          Geheime rollen zijn bijvoorbeeld voor De mol. Zichtbare rollen zijn eerder voor gilden of jagers.
+        </p>
 
         <div class="button-grid">
           <div>
-            <label for="moleRoleDistribution">Rolverdeling</label>
-            <select id="moleRoleDistribution">
-              <option value="oneMolePerTeam">Eén mol per team</option>
-              <option value="oneMoleGlobal">Eén mol in heel het spel</option>
-              <option value="teacherAssigned">Leerkracht kiest</option>
-            </select>
+            <label for="rolesMaxRoles">Aantal speciale rollen</label>
+            <input id="rolesMaxRoles" type="number" value="1" placeholder="bv. 1">
+            <p class="small-note">Hoeveel groepen of rollen tegelijk actief mogen zijn.</p>
           </div>
 
           <div>
-            <label for="moleRevealMoment">Ontmaskering</label>
-            <select id="moleRevealMoment">
-              <option value="endOnly">Enkel op het einde</option>
-              <option value="midGame">Halverwege mogelijk</option>
-              <option value="teacherTriggered">Door leerkracht</option>
-            </select>
+            <label for="rolesRotationMinutes">Rolwissel om de ... minuten</label>
+            <input id="rolesRotationMinutes" type="number" value="15" placeholder="bv. 15">
+            <p class="small-note">Enkel gebruiken als rollen mogen wisselen.</p>
           </div>
-        </div>
-
-        <div class="checkbox-grid">
-          <label><input id="moleUseSabotageActions" type="checkbox" checked> Sabotageacties</label>
-          <label><input id="moleUseSecretObjectives" type="checkbox"> Geheime opdrachten</label>
-          <label><input id="moleUseSuspicionMeter" type="checkbox"> Verdachtmeter</label>
-        </div>
-      </div>
-
-      <div class="card engine-panel hidden" id="engineHuntersPanel">
-        <h2>Instellingen voor Jagers</h2>
-
-        <div class="button-grid">
-          <div>
-            <label for="huntersStartRole">Startrol teams</label>
-            <select id="huntersStartRole">
-              <option value="balanced">Gebalanceerd verdeeld</option>
-              <option value="allRunners">Iedereen start als prooi</option>
-              <option value="teacherAssigned">Leerkracht kiest</option>
-            </select>
-          </div>
-
-          <div>
-            <label for="huntersRoleSwitchTrigger">Wanneer rol wisselt</label>
-            <select id="huntersRoleSwitchTrigger">
-              <option value="afterSolvedQuestions">Na opgeloste vragen</option>
-              <option value="afterTime">Na bepaalde tijd</option>
-              <option value="afterCapture">Na vangst</option>
-              <option value="teacherTriggered">Door leerkracht</option>
-            </select>
-          </div>
-        </div>
-
-        <div class="button-grid">
-          <div>
-            <label for="huntersSwitchThreshold">Drempel rolwissel</label>
-            <input id="huntersSwitchThreshold" type="number" min="1" placeholder="bv. 3">
-          </div>
-
-          <div>
-            <label for="huntersCatchRadius">Straal om te ‘vangen’</label>
-            <input id="huntersCatchRadius" type="number" min="1" placeholder="bv. 20">
-          </div>
-        </div>
-
-        <div class="checkbox-grid">
-          <label><input id="huntersUseLiveTargets" type="checkbox"> Live doelwit tonen</label>
-          <label><input id="huntersUseRoleSwitch" type="checkbox" checked> Rollen wisselen</label>
-          <label><input id="huntersUseChaseScoring" type="checkbox"> Achtervolgingsscore</label>
         </div>
       </div>
 
       <div class="card">
-        <h2>Samenvatting</h2>
-        <div id="speltypeSummary">
-          <p>Nog geen samenvatting beschikbaar.</p>
+        <h2>Inventory</h2>
+
+        <label for="inventoryName">Naam inventory</label>
+        <input id="inventoryName" type="text" placeholder="bv. Grimoire">
+
+        <p class="small-note">
+          Kies hoe de inventory genoemd wordt voor de leerlingen. Bijvoorbeeld rugzak, grimoire of dossier.
+        </p>
+      </div>
+
+      <div class="card">
+        <h2>Effecten</h2>
+
+        <div class="checkbox-grid">
+          <label>
+            <input type="checkbox" id="effectMapBlur">
+            Kaart wazig
+          </label>
+          <label>
+            <input type="checkbox" id="effectCompassOff">
+            Kompas uit
+          </label>
+          <label>
+            <input type="checkbox" id="effectFreeze">
+            Tijdelijke blokkade
+          </label>
+          <label>
+            <input type="checkbox" id="effectScoreSteal">
+            Punten stelen
+          </label>
+          <label>
+            <input type="checkbox" id="effectShield">
+            Bescherming / schild
+          </label>
+          <label>
+            <input type="checkbox" id="effectFakeTarget">
+            Verkeerd doel tonen
+          </label>
+        </div>
+
+        <div class="info-list">
+          <p><strong>Kaart wazig</strong> maakt de kaart tijdelijk moeilijk leesbaar.</p>
+          <p><strong>Kompas uit</strong> verbergt de richtingaanwijzer tijdelijk.</p>
+          <p><strong>Tijdelijke blokkade</strong> laat een team even niet verder spelen.</p>
+          <p><strong>Punten stelen</strong> laat een team punten afpakken van een ander team.</p>
+          <p><strong>Bescherming / schild</strong> beschermt tegen een negatieve actie.</p>
+          <p><strong>Verkeerd doel tonen</strong> toont tijdelijk foutieve doelinformatie.</p>
         </div>
       </div>
 
       <div class="card">
-        <div class="button-grid">
-          <button id="saveSpeltypeButton">Bewaar speltype</button>
+        <h2>Sabotage</h2>
+
+        <div class="checkbox-grid">
+          <label>
+            <input type="checkbox" id="sabotageEnabled">
+            Sabotage actief
+          </label>
+          <label>
+            <input type="checkbox" id="sabotageRequiresProximity">
+            Alleen bij nabijheid van ander team
+          </label>
         </div>
-        <p id="speltypeFeedback"></p>
+
+        <div class="button-grid">
+          <div>
+            <label for="sabotageCooldownSeconds">Cooldown sabotage (sec)</label>
+            <input id="sabotageCooldownSeconds" type="number" value="60" placeholder="bv. 60">
+            <p class="small-note">
+              Tijd die moet verlopen voor een volgende sabotage.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>UI voor leerlingen</h2>
+
+        <div class="checkbox-grid">
+          <label>
+            <input type="checkbox" id="uiShowRanking" checked>
+            Ranking tonen
+          </label>
+          <label>
+            <input type="checkbox" id="uiShowTimer">
+            Timer tonen
+          </label>
+          <label>
+            <input type="checkbox" id="uiShowInventory" checked>
+            Inventory tonen
+          </label>
+          <label>
+            <input type="checkbox" id="uiShowRoles">
+            Rollen tonen
+          </label>
+        </div>
+
+        <div class="info-list">
+          <p><strong>Ranking tonen</strong> laat leerlingen live het klassement zien.</p>
+          <p><strong>Timer tonen</strong> maakt tijdsdruk zichtbaar.</p>
+          <p><strong>Inventory tonen</strong> laat de knop voor grimoire, rugzak of dossier zien.</p>
+          <p><strong>Rollen tonen</strong> is alleen nuttig voor zichtbare rollen, niet voor De mol.</p>
+        </div>
       </div>
     </div>
   </div>
 
-  <script type="module" src="speltypes.js?v=20260326-speltypes-2"></script>
+  <script type="module" src="speltypes.js?v=20260328-builder-1"></script>
 </body>
 </html>
