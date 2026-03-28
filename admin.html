@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>City Escape Admin</title>
-  <link rel="stylesheet" href="style.css?v=20260326-heks-admin-5">
+  <link rel="stylesheet" href="style.css?v=20260328-admin-koppeling-1">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 </head>
 <body>
@@ -33,52 +33,70 @@
       <div class="card">
         <h2>Stad beheren</h2>
 
+        <label for="adminCitySelector">Kies een stad</label>
         <select id="adminCitySelector"></select>
 
         <div class="button-grid">
-          <button id="loadCityButton">Laad stad uit Firebase</button>
-          <button id="loadTemplateButton">Laad template uit cities.js</button>
-          <button id="newCityButton">Nieuwe stad</button>
+          <button id="loadCityButton" type="button">Laad stad uit Firebase</button>
+          <button id="loadTemplateButton" type="button">Laad template uit cities.js</button>
+          <button id="newCityButton" type="button">Nieuwe stad</button>
         </div>
 
-        <input id="cityKeyInput" type="text" placeholder="City key, bv. durbuy">
-        <input id="cityNameInput" type="text" placeholder="Stadsnaam">
+        <label for="cityKeyInput">Interne stads-ID</label>
+        <input id="cityKeyInput" type="text" placeholder="bv. durbuy">
+
+        <label for="cityNameInput">Naam van de stad</label>
+        <input id="cityNameInput" type="text" placeholder="bv. Durbuy">
 
         <div class="button-grid">
-          <input id="cityCenterLat" type="number" step="any" placeholder="Center latitude">
-          <input id="cityCenterLng" type="number" step="any" placeholder="Center longitude">
+          <div>
+            <label for="cityCenterLat">Center latitude</label>
+            <input id="cityCenterLat" type="number" step="any" placeholder="latitude">
+          </div>
+          <div>
+            <label for="cityCenterLng">Center longitude</label>
+            <input id="cityCenterLng" type="number" step="any" placeholder="longitude">
+          </div>
         </div>
 
-        <input id="gatherNameInput" type="text" placeholder="Naam verzamelpunt">
+        <label for="gatherNameInput">Naam verzamelpunt</label>
+        <input id="gatherNameInput" type="text" placeholder="bv. Verzamelpunt">
 
         <div class="button-grid">
-          <input id="gatherLatInput" type="number" step="any" placeholder="Gather latitude">
-          <input id="gatherLngInput" type="number" step="any" placeholder="Gather longitude">
+          <div>
+            <label for="gatherLatInput">Gather latitude</label>
+            <input id="gatherLatInput" type="number" step="any" placeholder="latitude">
+          </div>
+          <div>
+            <label for="gatherLngInput">Gather longitude</label>
+            <input id="gatherLngInput" type="number" step="any" placeholder="longitude">
+          </div>
         </div>
 
-        <input id="gatherRadiusInput" type="number" placeholder="Radius verzamelpunt in meter">
+        <label for="gatherRadiusInput">Straal verzamelpunt</label>
+        <input id="gatherRadiusInput" type="number" placeholder="bv. 40">
 
         <h3>Gekoppeld thema</h3>
         <select id="cityThemeSelector"></select>
         <p class="small-note">
-          Beheer of maak thema’s aan via de aparte pagina themabeheer.
+          Kies hier welk thema deze stad gebruikt.
         </p>
 
         <h3>Gekoppeld speltype</h3>
         <select id="cityGameTypeSelector"></select>
         <p class="small-note">
-          Kies welk speltype deze stad gebruikt. Beheer of maak speltypes aan via de aparte pagina speltypes.
+          Kies hier welk speltype deze stad gebruikt. Dit bepaalt welke mechanismen actief zijn tijdens het spel.
         </p>
 
         <div class="button-grid">
-          <button id="saveCityButton">Bewaar stad in Firebase</button>
-          <button id="deleteCityButton">Verwijder stad uit Firebase</button>
+          <button id="saveCityButton" type="button">Bewaar stad in Firebase</button>
+          <button id="deleteCityButton" type="button">Verwijder stad uit Firebase</button>
         </div>
 
         <p id="adminCityInfo"></p>
       </div>
 
-      <div id="map"></div>
+      <div id="map" style="height: 420px;"></div>
 
       <div class="card">
         <h2>Checkpoint bewerken</h2>
@@ -264,9 +282,9 @@
         </div>
 
         <div class="button-grid">
-          <button id="addCheckpointButton">Nieuw checkpoint toevoegen</button>
-          <button id="updateCheckpointButton">Geselecteerd checkpoint bijwerken</button>
-          <button id="deleteCheckpointButton">Geselecteerd checkpoint verwijderen</button>
+          <button id="addCheckpointButton" type="button">Nieuw checkpoint toevoegen</button>
+          <button id="updateCheckpointButton" type="button">Geselecteerd checkpoint bijwerken</button>
+          <button id="deleteCheckpointButton" type="button">Geselecteerd checkpoint verwijderen</button>
         </div>
 
         <p id="cpEditorStatus"></p>
@@ -280,6 +298,6 @@
   </div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script type="module" src="admin.js?v=20260326-heks-admin-5"></script>
+  <script type="module" src="admin.js?v=20260328-admin-koppeling-1"></script>
 </body>
 </html>
