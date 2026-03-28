@@ -886,10 +886,6 @@ function updateInventoryTexts() {
   }
 }
 
-function hasModule(name) {
-  return !!currentGameType?.modules?.[name];
-}
-
 function shouldUseInventoryUI() {
   return hasModule("inventory") || hasModule("evidenceBook") || hasModule("collectibles");
 }
