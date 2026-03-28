@@ -1282,35 +1282,36 @@ function renderImagePuzzle(cp) {
   }
 
   currentPuzzleOrder.forEach((tileNumber, index) => {
-    const row = Math.floor(tileNumber / gridSize);
-    const col = tileNumber % gridSize;
+  const row = Math.floor(tileNumber / gridSize);
+  const col = tileNumber % gridSize;
 
-    const tile = document.createElement("div");
-    tile.className = "puzzle-tile";
-    if (currentPuzzleSelectedIndex === index) tile.classList.add("selected");
+  const tile = document.createElement("div");
+  tile.className = "puzzle-tile";
+  if (currentPuzzleSelectedIndex === index) tile.classList.add("selected");
 
-    tile.style.width = "90px";
-    tile.style.height = "90px";
-    tile.style.backgroundImage = `url('${cp.imageUrl}')`;
-    tile.style.backgroundSize = `${gridSize * 90px} ${gridSize * 90}px`;
-    tile.style.backgroundPosition = `${-col * 90}px ${-row * 90}px`;
+  tile.style.width = "90px";
+  tile.style.height = "90px";
+  tile.style.backgroundImage = `url('${cp.imageUrl}')`;
+  tile.style.backgroundSize = `${gridSize * 90}px ${gridSize * 90}px`;
+  tile.style.backgroundPosition = `${-col * 90}px ${-row * 90}px`;
 
-    tile.addEventListener("click", () => {
-      if (currentPuzzleSelectedIndex === null) {
-        currentPuzzleSelectedIndex = index;
-      } else if (currentPuzzleSelectedIndex === index) {
-        currentPuzzleSelectedIndex = null;
-      } else {
-        const a = currentPuzzleSelectedIndex;
-        const b = index;
-        [currentPuzzleOrder[a], currentPuzzleOrder[b]] = [currentPuzzleOrder[b], currentPuzzleOrder[a]];
-        currentPuzzleSelectedIndex = null;
-      }
-      renderImagePuzzle(cp);
-    });
+  tile.addEventListener("click", () => {
+    if (currentPuzzleSelectedIndex === null) {
+      currentPuzzleSelectedIndex = index;
+    } else if (currentPuzzleSelectedIndex === index) {
+      currentPuzzleSelectedIndex = null;
+    } else {
+      const a = currentPuzzleSelectedIndex;
+      const b = index;
+      [currentPuzzleOrder[a], currentPuzzleOrder[b]] = [currentPuzzleOrder[b], currentPuzzleOrder[a]];
+      currentPuzzleSelectedIndex = null;
+    }
 
-    grid.appendChild(tile);
+    renderImagePuzzle(cp);
   });
+
+  grid.appendChild(tile);
+});
 }
 
 function attachPhotoListeners() {
