@@ -886,14 +886,25 @@ function updateInventoryTexts() {
   }
 }
 
+function hasModule(name) {
+  return !!currentGameType?.modules?.[name];
+}
+
+function shouldUseInventoryUI() {
+  return hasModule("inventory") || hasModule("evidenceBook") || hasModule("collectibles");
+}
+
 function getInventoryLabel() {
   if (!currentGameType) return "Dossier";
+
   if (currentGameType.engine === "collectibles") {
     return currentGameType.engineConfig?.inventoryName || "Grimoire";
   }
+
   if (currentGameType.engine === "murder") {
     return currentGameType.engineConfig?.bookName || "Dossier";
   }
+
   return currentGameType.engineConfig?.inventoryName || "Dossier";
 }
 
