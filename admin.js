@@ -7,6 +7,7 @@ import {
   ref,
   get,
   set,
+  update,
   remove,
   onValue
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
@@ -24,62 +25,22 @@ const auth = getAuth(app);
 
 let citiesCache = {};
 let themesCache = {};
-let speltypesCache = {};
-
-let activeCityKey = null;
-let checkpoints = [];
-let selectedIndex = null;
-
-let map;
-let markers = [];
-let tempClickMarker = null;
-let activeGameType = null;
+let gameTypesCache = {};
+let currentCityKey = "";
+let currentCheckpoints = [];
+let selectedCheckpointIndex = -1;
+let map = null;
+let cityMarker = null;
+let gatherMarker = null;
+let checkpointMarkers = [];
 
 function byId(id) {
   return document.getElementById(id);
 }
 
-function setValue(id, value) {
-  const el = byId(id);
-  if (el) el.value = value ?? "";
-}
-
-function getValue(id) {
-  const el = byId(id);
-  return el ? el.value : "";
-}
-
-function setChecked(id, value) {
-  const el = byId(id);
-  if (el) el.checked = !!value;
-}
-
-function getChecked(id) {
-  const el = byId(id);
-  return !!el?.checked;
-}
-
-function setText(id, value) {
-  const el = byId(id);
-  if (el) el.innerText = value ?? "";
-}
-
-function parseCommaList(value) {
-  return String(value || "")
-    .split(",")
-    .map(item => item.trim())
-    .filter(Boolean);
-}
-
-function refreshMapSize(delay = 250) {
-  setTimeout(() => {
-    if (map) map.invalidateSize();
-  }, delay);
-}
-
 function login() {
-  const email = getValue("email").trim();
-  const password = getValue("password");
+  const email = byId("email")?.value?.trim() || "";
+  const password = byId("password")?.value || "";
 
   signInWithEmailAndPassword(auth, email, password).catch((error) => {
     alert("Login mislukt: " + error.message);
@@ -95,219 +56,18 @@ function logout() {
 window.login = login;
 window.logout = logout;
 
-function setProtectedUIVisible(isVisible) {
-  const loginScreen = byId("loginScreen");
-  const appContent = byId("appContent");
-  const loginStatus = byId("loginStatus");
-
-  if (loginScreen) loginScreen.style.display = isVisible ? "none" : "block";
-  if (appContent) appContent.style.display = isVisible ? "block" : "none";
-
-  if (loginStatus) {
-    loginStatus.innerText =
-      isVisible && auth.currentUser
-        ? "Ingelogd als: " + auth.currentUser.email
-        : "";
-  }
-
-  if (isVisible) {
-    refreshMapSize(300);
-  }
+function setStatus(text, isError = false) {
+  const info = byId("adminCityInfo");
+  if (!info) return;
+  info.innerText = text || "";
+  info.style.color = isError ? "#ffb4b4" : "";
 }
 
-function normalizeGameType(raw) {
-  return {
-    name: raw?.name || "Klassiek",
-    engine: raw?.engine || "classic",
-    modules: {
-      questions: raw?.modules?.questions ?? true,
-      story: raw?.modules?.story ?? false,
-      inventory: raw?.modules?.inventory ?? false,
-      collectibles: raw?.modules?.collectibles ?? false,
-      dialogs: raw?.modules?.dialogs ?? false,
-      evidenceBook: raw?.modules?.evidenceBook ?? false,
-      fingerprints: raw?.modules?.fingerprints ?? false,
-      fakeClues: raw?.modules?.fakeClues ?? false,
-      secretRoles: raw?.modules?.secretRoles ?? false,
-      sabotage: raw?.modules?.sabotage ?? false,
-      chase: raw?.modules?.chase ?? false
-    }
-  };
-}
-
-function getSelectedGameType() {
-  const gameTypeId = getValue("cityGameTypeSelector").trim();
-  if (!gameTypeId || !speltypesCache[gameTypeId]) {
-    return normalizeGameType({ engine: "classic", name: "Klassiek" });
-  }
-  return normalizeGameType(speltypesCache[gameTypeId]);
-}
-
-function showSection(id, visible) {
-  const el = byId(id);
-  if (!el) return;
-  el.classList.toggle("hidden", !visible);
-}
-
-function applyCheckpointEditorToGameType() {
-  activeGameType = getSelectedGameType();
-
-  const storyVisible =
-    activeGameType.modules.story ||
-    activeGameType.engine === "collectibles" ||
-    activeGameType.engine === "murder";
-
-  showSection("cpStoryBlock", storyVisible);
-
-  const collectibleVisible =
-    activeGameType.modules.collectibles ||
-    activeGameType.modules.inventory ||
-    activeGameType.modules.evidenceBook ||
-    activeGameType.engine === "collectibles" ||
-    activeGameType.engine === "murder";
-
-  showSection("cpCollectibleSection", collectibleVisible);
-
-  const collectibleAdvancedVisible =
-    activeGameType.engine === "collectibles" ||
-    activeGameType.modules.collectibles;
-
-  showSection("cpCollectibleAdvancedSection", collectibleAdvancedVisible);
-
-  const murderVisible =
-    activeGameType.engine === "murder" ||
-    activeGameType.modules.dialogs ||
-    activeGameType.modules.evidenceBook ||
-    activeGameType.modules.fingerprints ||
-    activeGameType.modules.fakeClues;
-
-  showSection("cpMurderSection", murderVisible);
-
-  const moleVisible =
-    activeGameType.engine === "mole" ||
-    activeGameType.modules.secretRoles ||
-    activeGameType.modules.sabotage;
-
-  showSection("cpMoleSection", moleVisible);
-
-  const huntersVisible =
-    activeGameType.engine === "hunters" ||
-    activeGameType.modules.chase;
-
-  showSection("cpHuntersSection", huntersVisible);
-
-  const sectionTitle = byId("cpCollectibleSectionTitle");
-  if (sectionTitle) {
-    if (activeGameType.engine === "murder") {
-      sectionTitle.innerText = "Bewijsmateriaal / bewijsboek";
-    } else if (activeGameType.engine === "collectibles") {
-      sectionTitle.innerText = "Collectible / dossieritem";
-    } else {
-      sectionTitle.innerText = "Collectible / dossieritem";
-    }
-  }
-}
-
-function buildFallbackCityRecord(key, city) {
-  const gatherCoords = Array.isArray(city.gather)
-    ? city.gather
-    : city.gather?.coords || city.center || [50.85, 4.35];
-
-  const gatherRadius = city.gather?.radius || 40;
-  const gatherName = city.gather?.name || "Verzamelpunt";
-
-  return {
-    key,
-    name: city.name || key,
-    center: city.center || gatherCoords,
-    gather: {
-      name: gatherName,
-      coords: gatherCoords,
-      radius: gatherRadius
-    },
-    themeId: city.themeId || "",
-    gameTypeId: city.gameTypeId || ""
-  };
-}
-
-function normalizeCityRecord(key, city) {
-  if (!city) {
-    return buildFallbackCityRecord(
-      key,
-      fallbackCities[key] || { name: key, center: [50.85, 4.35], gather: [50.85, 4.35] }
-    );
-  }
-
-  const fallback = fallbackCities[key]
-    ? buildFallbackCityRecord(key, fallbackCities[key])
-    : null;
-
-  const center = Array.isArray(city.center)
-    ? city.center
-    : fallback?.center || [50.85, 4.35];
-
-  let gather;
-  if (Array.isArray(city.gather)) {
-    gather = {
-      name: "Verzamelpunt",
-      coords: city.gather,
-      radius: 40
-    };
-  } else if (city.gather && Array.isArray(city.gather.coords)) {
-    gather = {
-      name: city.gather.name || "Verzamelpunt",
-      coords: city.gather.coords,
-      radius: Number(city.gather.radius || 40)
-    };
-  } else {
-    gather = fallback?.gather || {
-      name: "Verzamelpunt",
-      coords: center,
-      radius: 40
-    };
-  }
-
-  return {
-    key,
-    name: city.name || fallback?.name || key,
-    center,
-    gather,
-    themeId: city.themeId || fallback?.themeId || "",
-    gameTypeId: city.gameTypeId || fallback?.gameTypeId || ""
-  };
-}
-
-function getCityRecord(cityKey) {
-  if (!cityKey) {
-    return {
-      key: "",
-      name: "",
-      center: [50.85, 4.35],
-      gather: {
-        name: "Verzamelpunt",
-        coords: [50.85, 4.35],
-        radius: 40
-      },
-      themeId: "",
-      gameTypeId: ""
-    };
-  }
-
-  if (citiesCache[cityKey]) return normalizeCityRecord(cityKey, citiesCache[cityKey]);
-  if (fallbackCities[cityKey]) return buildFallbackCityRecord(cityKey, fallbackCities[cityKey]);
-
-  return {
-    key: cityKey,
-    name: cityKey,
-    center: [50.85, 4.35],
-    gather: {
-      name: "Verzamelpunt",
-      coords: [50.85, 4.35],
-      radius: 40
-    },
-    themeId: "",
-    gameTypeId: ""
-  };
+function setCheckpointStatus(text, isError = false) {
+  const info = byId("cpEditorStatus");
+  if (!info) return;
+  info.innerText = text || "";
+  info.style.color = isError ? "#ffb4b4" : "";
 }
 
 function mergedCityKeys() {
@@ -319,875 +79,662 @@ function mergedCityKeys() {
   ).sort((a, b) => a.localeCompare(b));
 }
 
-function populateCitySelector() {
-  const select = byId("adminCitySelector");
-  if (!select) return;
+function getCityRecord(cityKey) {
+  const firebaseCity = citiesCache[cityKey];
+  const fallbackCity = fallbackCities[cityKey];
 
-  const keys = mergedCityKeys();
-  select.innerHTML = "";
+  if (firebaseCity) {
+    return {
+      name: firebaseCity.name || fallbackCity?.name || cityKey,
+      center: Array.isArray(firebaseCity.center)
+        ? firebaseCity.center
+        : fallbackCity?.center || [50.85, 4.35],
+      gather: firebaseCity.gather || fallbackCity?.gather || {
+        name: "Verzamelpunt",
+        coords: [50.85, 4.35],
+        radius: 40
+      },
+      themeId: firebaseCity.themeId || "",
+      gameTypeId: firebaseCity.gameTypeId || ""
+    };
+  }
+
+  if (fallbackCity) {
+    return {
+      name: fallbackCity.name || cityKey,
+      center: fallbackCity.center || [50.85, 4.35],
+      gather: fallbackCity.gather || {
+        name: "Verzamelpunt",
+        coords: fallbackCity.center || [50.85, 4.35],
+        radius: 40
+      },
+      themeId: fallbackCity.themeId || "",
+      gameTypeId: fallbackCity.gameTypeId || ""
+    };
+  }
+
+  return {
+    name: cityKey || "",
+    center: [50.85, 4.35],
+    gather: {
+      name: "Verzamelpunt",
+      coords: [50.85, 4.35],
+      radius: 40
+    },
+    themeId: "",
+    gameTypeId: ""
+  };
+}
+
+function populateCitySelector() {
+  const selector = byId("adminCitySelector");
+  if (!selector) return;
+
+  const current = selector.value;
+  selector.innerHTML = "";
 
   const emptyOption = document.createElement("option");
   emptyOption.value = "";
-  emptyOption.textContent = "Kies een stad";
-  select.appendChild(emptyOption);
+  emptyOption.textContent = "-- Kies een stad --";
+  selector.appendChild(emptyOption);
 
-  if (!keys.length) {
-    activeCityKey = null;
-    return;
-  }
-
-  if (!activeCityKey || !keys.includes(activeCityKey)) {
-    activeCityKey = keys[0];
-  }
-
-  keys.forEach((key) => {
-    const city = getCityRecord(key);
+  mergedCityKeys().forEach((key) => {
     const option = document.createElement("option");
     option.value = key;
-    option.textContent = city.name;
-    select.appendChild(option);
+    option.textContent = getCityRecord(key).name;
+    selector.appendChild(option);
   });
 
-  select.value = activeCityKey || "";
+  if (current && mergedCityKeys().includes(current)) {
+    selector.value = current;
+  }
 }
 
-function populateThemeSelector(selectedThemeId = "") {
-  const select = byId("cityThemeSelector");
-  if (!select) return;
+function populateThemeSelector() {
+  const selector = byId("cityThemeSelector");
+  if (!selector) return;
 
-  select.innerHTML = "";
+  const current = selector.value;
+  selector.innerHTML = "";
 
   const emptyOption = document.createElement("option");
   emptyOption.value = "";
-  emptyOption.textContent = "Geen thema gekoppeld";
-  select.appendChild(emptyOption);
+  emptyOption.textContent = "-- Geen thema --";
+  selector.appendChild(emptyOption);
 
   Object.keys(themesCache)
-    .sort((a, b) => a.localeCompare(b))
-    .forEach((themeKey) => {
+    .sort((a, b) => {
+      const nameA = themesCache[a]?.name || a;
+      const nameB = themesCache[b]?.name || b;
+      return nameA.localeCompare(nameB);
+    })
+    .forEach((id) => {
       const option = document.createElement("option");
-      option.value = themeKey;
-      option.textContent = themesCache[themeKey]?.name || themeKey;
-      select.appendChild(option);
+      option.value = id;
+      option.textContent = themesCache[id]?.name || id;
+      selector.appendChild(option);
     });
 
-  select.value = selectedThemeId || "";
+  selector.value = current && themesCache[current] ? current : "";
 }
 
-function populateGameTypeSelector(selectedGameTypeId = "") {
-  const select = byId("cityGameTypeSelector");
-  if (!select) return;
+function populateGameTypeSelector() {
+  const selector = byId("cityGameTypeSelector");
+  if (!selector) return;
 
-  select.innerHTML = "";
+  const current = selector.value;
+  selector.innerHTML = "";
 
   const emptyOption = document.createElement("option");
   emptyOption.value = "";
-  emptyOption.textContent = "Geen speltype gekoppeld";
-  select.appendChild(emptyOption);
+  emptyOption.textContent = "-- Geen speltype --";
+  selector.appendChild(emptyOption);
 
-  Object.keys(speltypesCache)
-    .sort((a, b) => a.localeCompare(b))
-    .forEach((gameTypeKey) => {
+  Object.keys(gameTypesCache)
+    .sort((a, b) => {
+      const nameA = gameTypesCache[a]?.name || a;
+      const nameB = gameTypesCache[b]?.name || b;
+      return nameA.localeCompare(nameB);
+    })
+    .forEach((id) => {
       const option = document.createElement("option");
-      option.value = gameTypeKey;
-      option.textContent = speltypesCache[gameTypeKey]?.name || gameTypeKey;
-      select.appendChild(option);
+      option.value = id;
+      option.textContent = gameTypesCache[id]?.name || id;
+      selector.appendChild(option);
     });
 
-  select.value = selectedGameTypeId || "";
-}
-
-function fillCityForm(cityKey) {
-  const city = getCityRecord(cityKey);
-
-  setValue("cityKeyInput", city.key || "");
-  setValue("cityNameInput", city.name || "");
-  setValue("cityCenterLat", city.center?.[0] ?? "");
-  setValue("cityCenterLng", city.center?.[1] ?? "");
-  setValue("gatherNameInput", city.gather?.name || "Verzamelpunt");
-  setValue("gatherLatInput", city.gather?.coords?.[0] ?? "");
-  setValue("gatherLngInput", city.gather?.coords?.[1] ?? "");
-  setValue("gatherRadiusInput", city.gather?.radius ?? 40);
-
-  populateThemeSelector(city.themeId || "");
-  populateGameTypeSelector(city.gameTypeId || "");
-  applyCheckpointEditorToGameType();
-
-  setText("adminCityInfo", city.name ? "Huidige stad: " + city.name : "Nieuwe stad");
+  selector.value = current && gameTypesCache[current] ? current : "";
 }
 
 function initMap() {
-  const firstKey = activeCityKey || Object.keys(fallbackCities)[0] || "durbuy";
-  const city = getCityRecord(firstKey);
-
-  if (map) {
-    map.remove();
-    map = null;
-  }
-
-  map = L.map("map").setView(city.center, 15);
+  map = L.map("map").setView([50.85, 4.35], 14);
 
   L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
     attribution: "OpenStreetMap"
   }).addTo(map);
 
-  map.on("click", (e) => {
-    setValue("cpLat", e.latlng.lat.toFixed(6));
-    setValue("cpLng", e.latlng.lng.toFixed(6));
-
-    if (tempClickMarker) {
-      map.removeLayer(tempClickMarker);
-    }
-
-    tempClickMarker = L.marker(e.latlng).addTo(map);
-  });
-
-  refreshMapSize(250);
+  setTimeout(() => map.invalidateSize(), 250);
 }
 
-function resetMapCity() {
-  if (!map || !activeCityKey) return;
-  const city = getCityRecord(activeCityKey);
-  map.setView(city.center, 15);
-  refreshMapSize(150);
+function clearCheckpointMarkers() {
+  checkpointMarkers.forEach((marker) => map.removeLayer(marker));
+  checkpointMarkers = [];
 }
 
-function clearMarkers() {
-  markers.forEach(marker => {
-    if (map) map.removeLayer(marker);
-  });
-  markers = [];
-}
-
-function renderMarkers() {
+function refreshMap() {
   if (!map) return;
 
-  clearMarkers();
+  const centerLat = Number(byId("cityCenterLat")?.value || 50.85);
+  const centerLng = Number(byId("cityCenterLng")?.value || 4.35);
+  const gatherLat = Number(byId("gatherLatInput")?.value || centerLat);
+  const gatherLng = Number(byId("gatherLngInput")?.value || centerLng);
 
-  checkpoints.forEach((cp, index) => {
-    if (!Array.isArray(cp.coords) || cp.coords.length !== 2) return;
+  if (cityMarker) map.removeLayer(cityMarker);
+  if (gatherMarker) map.removeLayer(gatherMarker);
+  clearCheckpointMarkers();
 
-    const marker = L.marker(cp.coords)
-      .addTo(map)
-      .bindPopup(cp.name || ("Checkpoint " + (index + 1)));
+  cityMarker = L.marker([centerLat, centerLng]).addTo(map).bindPopup("Center");
+  gatherMarker = L.marker([gatherLat, gatherLng]).addTo(map).bindPopup("Verzamelpunt");
 
+  currentCheckpoints.forEach((cp, index) => {
+    if (!Array.isArray(cp.coords)) return;
+
+    const marker = L.marker(cp.coords).addTo(map).bindPopup(cp.name || `Checkpoint ${index + 1}`);
     marker.on("click", () => {
-      loadCheckpointIntoForm(index);
+      loadCheckpointIntoEditor(index);
     });
-
-    markers.push(marker);
-
-    if (cp.collectibleCoords && Array.isArray(cp.collectibleCoords) && cp.collectibleCoords.length === 2) {
-      const collectibleMarker = L.circleMarker(cp.collectibleCoords, {
-        radius: 6
-      }).addTo(map);
-      collectibleMarker.bindPopup(`Collectible bij ${cp.name || "checkpoint"}`);
-      markers.push(collectibleMarker);
-    }
+    checkpointMarkers.push(marker);
   });
+
+  const bounds = [
+    [centerLat, centerLng],
+    [gatherLat, gatherLng],
+    ...currentCheckpoints.filter(cp => Array.isArray(cp.coords)).map(cp => cp.coords)
+  ];
+
+  if (bounds.length) {
+    map.fitBounds(bounds, { padding: [30, 30] });
+  }
 }
 
-function taskTypeLabel(type) {
-  const labels = {
-    text: "Tekstvraag",
-    riddle: "Raadsel",
-    multipleChoice: "Meerkeuze",
-    matching: "Koppelen",
-    imagePuzzle: "Afbeeldingspuzzel",
-    photo: "Foto-opdracht"
+async function loadCheckpointsForCity(cityKey) {
+  const snapshot = await get(ref(db, "cityData/" + cityKey + "/checkpoints"));
+  if (snapshot.exists()) {
+    const data = snapshot.val();
+    if (Array.isArray(data)) return data;
+  }
+
+  const fallback = fallbackCities[cityKey]?.defaultCheckpoints;
+  return Array.isArray(fallback) ? fallback : [];
+}
+
+function parseCommaList(value) {
+  return String(value || "")
+    .split(",")
+    .map(v => v.trim())
+    .filter(Boolean);
+}
+
+function parseCorrectPairs(value) {
+  const obj = {};
+  String(value || "")
+    .split("\n")
+    .map(v => v.trim())
+    .filter(Boolean)
+    .forEach((line) => {
+      const parts = line.split("=");
+      if (parts.length >= 2) {
+        const left = parts[0].trim();
+        const right = parts.slice(1).join("=").trim();
+        if (left && right) obj[left] = right;
+      }
+    });
+  return obj;
+}
+
+function correctPairsToText(obj = {}) {
+  return Object.entries(obj)
+    .map(([k, v]) => `${k}=${v}`)
+    .join("\n");
+}
+
+function collectCheckpointFromEditor() {
+  const cp = {
+    name: byId("cpName")?.value?.trim() || "Checkpoint",
+    coords: [
+      Number(byId("cpLat")?.value || 0),
+      Number(byId("cpLng")?.value || 0)
+    ],
+    radius: Number(byId("cpRadius")?.value || 20),
+    taskType: byId("cpTaskType")?.value || "text",
+    story: byId("cpStory")?.value?.trim() || "",
+    question: byId("cpQuestion")?.value?.trim() || "",
+    answers: parseCommaList(byId("cpAnswers")?.value || ""),
+    options: parseCommaList(byId("cpOptions")?.value || ""),
+    correctOption: Number(byId("cpCorrectOption")?.value || 0),
+    leftItems: parseCommaList(byId("cpLeftItems")?.value || ""),
+    rightItems: parseCommaList(byId("cpRightItems")?.value || ""),
+    correctPairs: parseCorrectPairs(byId("cpCorrectPairs")?.value || ""),
+    imageUrl: byId("cpImageUrl")?.value?.trim() || "",
+    gridSize: Number(byId("cpGridSize")?.value || 3),
+    video: byId("cpVideo")?.value?.trim() || "",
+    audio: byId("cpAudio")?.value?.trim() || "",
+    image: byId("cpImage")?.value?.trim() || "",
+    pointsCorrect: Number(byId("cpPointsCorrect")?.value || 0),
+    pointsAfterMaxTries: Number(byId("cpPointsAfterMaxTries")?.value || 0)
   };
-  return labels[type] || type || "Tekstvraag";
+
+  const collectibleName = byId("cpCollectibleName")?.value?.trim() || "";
+  if (collectibleName) {
+    cp.collectible = {
+      name: collectibleName,
+      icon: byId("cpCollectibleIcon")?.value || "❓",
+      description: byId("cpCollectibleDescription")?.value?.trim() || "",
+      lockedName: byId("cpCollectibleLockedName")?.value?.trim() || "Onbekend spoor",
+      lockedIcon: byId("cpCollectibleLockedIcon")?.value || "❓"
+    };
+
+    const cLat = byId("cpCollectibleLat")?.value;
+    const cLng = byId("cpCollectibleLng")?.value;
+    if (cLat && cLng) {
+      cp.collectibleCoords = [Number(cLat), Number(cLng)];
+    }
+
+    cp.collectibleSearchRadius = Number(byId("cpCollectibleSearchRadius")?.value || 30);
+    cp.collectibleRevealDistance = Number(byId("cpCollectibleRevealDistance")?.value || 15);
+  }
+
+  const suspectName = byId("cpSuspectName")?.value?.trim() || "";
+  const dialogText = byId("cpDialogText")?.value?.trim() || "";
+  if (suspectName) cp.suspectName = suspectName;
+  if (dialogText) cp.dialogText = dialogText;
+  if (byId("cpHasFingerprint")?.checked) cp.hasFingerprint = true;
+  if (byId("cpIsFakeClue")?.checked) cp.isFakeClue = true;
+  if (byId("cpEvidenceIsCritical")?.checked) cp.evidenceIsCritical = true;
+  if (byId("cpFingerprintLabel")?.value?.trim()) cp.fingerprintLabel = byId("cpFingerprintLabel").value.trim();
+
+  if (byId("cpSabotageHint")?.value?.trim()) cp.sabotageHint = byId("cpSabotageHint").value.trim();
+  if (byId("cpCanTriggerSabotage")?.checked) cp.canTriggerSabotage = true;
+  if (byId("cpSecretObjective")?.checked) cp.secretObjective = true;
+  if (byId("cpSecretObjectiveText")?.value?.trim()) cp.secretObjectiveText = byId("cpSecretObjectiveText").value.trim();
+
+  if (byId("cpCanSwitchRoles")?.checked) cp.canSwitchRoles = true;
+  if (byId("cpCanTriggerChase")?.checked) cp.canTriggerChase = true;
+  if (byId("cpRoleSwitchValue")?.value) cp.roleSwitchValue = Number(byId("cpRoleSwitchValue").value);
+  if (byId("cpChaseRadius")?.value) cp.chaseRadius = Number(byId("cpChaseRadius").value);
+
+  return cp;
 }
 
-function toggleTaskFields() {
-  const type = getValue("cpTaskType") || "text";
+function clearCheckpointEditor() {
+  [
+    "cpName","cpLat","cpLng","cpRadius","cpStory","cpQuestion","cpAnswers","cpOptions","cpCorrectOption",
+    "cpLeftItems","cpRightItems","cpCorrectPairs","cpImageUrl","cpGridSize","cpVideo","cpAudio","cpImage",
+    "cpPointsCorrect","cpPointsAfterMaxTries","cpCollectibleName","cpCollectibleLockedName","cpCollectibleDescription",
+    "cpCollectibleLat","cpCollectibleLng","cpCollectibleSearchRadius","cpCollectibleRevealDistance",
+    "cpSuspectName","cpDialogText","cpFingerprintLabel","cpSabotageHint","cpSecretObjectiveText",
+    "cpRoleSwitchValue","cpChaseRadius"
+  ].forEach((id) => {
+    if (byId(id)) byId(id).value = "";
+  });
 
-  showSection("cpTextAnswersWrapper", false);
-  showSection("cpMultipleChoiceWrapper", false);
-  showSection("cpMatchingWrapper", false);
-  showSection("cpImagePuzzleWrapper", false);
-  showSection("cpPhotoWrapper", false);
+  if (byId("cpTaskType")) byId("cpTaskType").value = "text";
+  if (byId("cpCollectibleIcon")) byId("cpCollectibleIcon").value = "";
+  if (byId("cpCollectibleLockedIcon")) byId("cpCollectibleLockedIcon").value = "❓";
 
-  if (type === "text" || type === "riddle") {
-    showSection("cpTextAnswersWrapper", true);
-  }
+  [
+    "cpHasFingerprint","cpIsFakeClue","cpEvidenceIsCritical",
+    "cpCanTriggerSabotage","cpSecretObjective",
+    "cpCanSwitchRoles","cpCanTriggerChase"
+  ].forEach((id) => {
+    if (byId(id)) byId(id).checked = false;
+  });
 
-  if (type === "multipleChoice") {
-    showSection("cpMultipleChoiceWrapper", true);
-  }
-
-  if (type === "matching") {
-    showSection("cpMatchingWrapper", true);
-  }
-
-  if (type === "imagePuzzle") {
-    showSection("cpImagePuzzleWrapper", true);
-  }
-
-  if (type === "photo") {
-    showSection("cpPhotoWrapper", true);
-  }
+  selectedCheckpointIndex = -1;
+  updateCheckpointEditorVisibility();
 }
 
-function clearForm() {
-  setValue("cpName", "");
-  setValue("cpLat", "");
-  setValue("cpLng", "");
-  setValue("cpRadius", "");
-  setValue("cpTaskType", "text");
-  setValue("cpStory", "");
-  setValue("cpQuestion", "");
-  setValue("cpAnswers", "");
-  setValue("cpOptions", "");
-  setValue("cpCorrectOption", "");
-  setValue("cpLeftItems", "");
-  setValue("cpRightItems", "");
-  setValue("cpCorrectPairs", "");
-  setValue("cpImageUrl", "");
-  setValue("cpGridSize", "3");
-  setValue("cpVideo", "");
-  setValue("cpAudio", "");
-  setValue("cpImage", "");
-  setValue("cpPointsCorrect", "10");
-  setValue("cpPointsAfterMaxTries", "4");
-
-  setValue("cpCollectibleName", "");
-  setValue("cpCollectibleIcon", "");
-  setValue("cpCollectibleLockedIcon", "❓");
-  setValue("cpCollectibleLockedName", "Onbekend spoor");
-  setValue("cpCollectibleDescription", "");
-  setValue("cpCollectibleLat", "");
-  setValue("cpCollectibleLng", "");
-  setValue("cpCollectibleSearchRadius", "");
-  setValue("cpCollectibleRevealDistance", "");
-
-  setValue("cpSuspectName", "");
-  setValue("cpDialogText", "");
-  setChecked("cpHasFingerprint", false);
-  setChecked("cpIsFakeClue", false);
-  setChecked("cpEvidenceIsCritical", false);
-  setValue("cpFingerprintLabel", "");
-
-  setValue("cpSabotageHint", "");
-  setChecked("cpCanTriggerSabotage", false);
-  setChecked("cpSecretObjective", false);
-  setValue("cpSecretObjectiveText", "");
-
-  setChecked("cpCanSwitchRoles", false);
-  setChecked("cpCanTriggerChase", false);
-  setValue("cpRoleSwitchValue", "");
-  setValue("cpChaseRadius", "");
-
-  selectedIndex = null;
-  toggleTaskFields();
-  applyCheckpointEditorToGameType();
-  setText("cpEditorStatus", "Nieuw checkpoint");
-}
-
-function loadCheckpointIntoForm(index) {
-  const cp = checkpoints[index];
+function loadCheckpointIntoEditor(index) {
+  const cp = currentCheckpoints[index];
   if (!cp) return;
 
-  selectedIndex = index;
+  selectedCheckpointIndex = index;
 
-  setValue("cpName", cp.name || "");
-  setValue("cpLat", cp.coords?.[0] ?? "");
-  setValue("cpLng", cp.coords?.[1] ?? "");
-  setValue("cpRadius", cp.radius ?? "");
-  setValue("cpTaskType", cp.taskType || "text");
-  setValue("cpStory", cp.story || "");
-  setValue("cpQuestion", cp.question || "");
+  byId("cpName").value = cp.name || "";
+  byId("cpLat").value = cp.coords?.[0] ?? "";
+  byId("cpLng").value = cp.coords?.[1] ?? "";
+  byId("cpRadius").value = cp.radius ?? 20;
+  byId("cpTaskType").value = cp.taskType || "text";
+  byId("cpStory").value = cp.story || "";
+  byId("cpQuestion").value = cp.question || "";
+  byId("cpAnswers").value = (cp.answers || []).join(", ");
+  byId("cpOptions").value = (cp.options || []).join(", ");
+  byId("cpCorrectOption").value = cp.correctOption ?? 0;
+  byId("cpLeftItems").value = (cp.leftItems || []).join(", ");
+  byId("cpRightItems").value = (cp.rightItems || []).join(", ");
+  byId("cpCorrectPairs").value = correctPairsToText(cp.correctPairs || {});
+  byId("cpImageUrl").value = cp.imageUrl || "";
+  byId("cpGridSize").value = cp.gridSize ?? 3;
+  byId("cpVideo").value = cp.video || "";
+  byId("cpAudio").value = cp.audio || "";
+  byId("cpImage").value = cp.image || "";
+  byId("cpPointsCorrect").value = cp.pointsCorrect ?? 0;
+  byId("cpPointsAfterMaxTries").value = cp.pointsAfterMaxTries ?? 0;
 
-  setValue("cpVideo", cp.video || "");
-  setValue("cpAudio", cp.audio || "");
-  setValue("cpImage", cp.image || "");
+  byId("cpCollectibleName").value = cp.collectible?.name || "";
+  byId("cpCollectibleIcon").value = cp.collectible?.icon || "";
+  byId("cpCollectibleLockedIcon").value = cp.collectible?.lockedIcon || "❓";
+  byId("cpCollectibleLockedName").value = cp.collectible?.lockedName || "";
+  byId("cpCollectibleDescription").value = cp.collectible?.description || "";
+  byId("cpCollectibleLat").value = cp.collectibleCoords?.[0] ?? "";
+  byId("cpCollectibleLng").value = cp.collectibleCoords?.[1] ?? "";
+  byId("cpCollectibleSearchRadius").value = cp.collectibleSearchRadius ?? "";
+  byId("cpCollectibleRevealDistance").value = cp.collectibleRevealDistance ?? "";
 
-  setValue("cpPointsCorrect", cp.pointsCorrect ?? 10);
-  setValue("cpPointsAfterMaxTries", cp.pointsAfterMaxTries ?? 4);
+  byId("cpSuspectName").value = cp.suspectName || "";
+  byId("cpDialogText").value = cp.dialogText || "";
+  byId("cpHasFingerprint").checked = !!cp.hasFingerprint;
+  byId("cpIsFakeClue").checked = !!cp.isFakeClue;
+  byId("cpEvidenceIsCritical").checked = !!cp.evidenceIsCritical;
+  byId("cpFingerprintLabel").value = cp.fingerprintLabel || "";
 
-  setValue("cpAnswers", Array.isArray(cp.answers) ? cp.answers.join(", ") : "");
-  setValue("cpOptions", Array.isArray(cp.options) ? cp.options.join(", ") : "");
-  setValue("cpCorrectOption", cp.correctOption ?? "");
+  byId("cpSabotageHint").value = cp.sabotageHint || "";
+  byId("cpCanTriggerSabotage").checked = !!cp.canTriggerSabotage;
+  byId("cpSecretObjective").checked = !!cp.secretObjective;
+  byId("cpSecretObjectiveText").value = cp.secretObjectiveText || "";
 
-  setValue("cpLeftItems", Array.isArray(cp.leftItems) ? cp.leftItems.join(", ") : "");
-  setValue("cpRightItems", Array.isArray(cp.rightItems) ? cp.rightItems.join(", ") : "");
-  setValue(
-    "cpCorrectPairs",
-    cp.correctPairs
-      ? Object.entries(cp.correctPairs).map(([left, right]) => `${left}=${right}`).join(", ")
-      : ""
-  );
+  byId("cpCanSwitchRoles").checked = !!cp.canSwitchRoles;
+  byId("cpCanTriggerChase").checked = !!cp.canTriggerChase;
+  byId("cpRoleSwitchValue").value = cp.roleSwitchValue ?? "";
+  byId("cpChaseRadius").value = cp.chaseRadius ?? "";
 
-  setValue("cpImageUrl", cp.imageUrl || "");
-  setValue("cpGridSize", cp.gridSize || 3);
-
-  const collectible = cp.collectible || {};
-  setValue("cpCollectibleName", collectible.name || "");
-  setValue("cpCollectibleIcon", collectible.icon || "");
-  setValue("cpCollectibleLockedIcon", collectible.lockedIcon || "❓");
-  setValue("cpCollectibleLockedName", collectible.lockedName || "Onbekend spoor");
-  setValue("cpCollectibleDescription", collectible.description || "");
-  setValue("cpCollectibleLat", cp.collectibleCoords?.[0] ?? "");
-  setValue("cpCollectibleLng", cp.collectibleCoords?.[1] ?? "");
-  setValue("cpCollectibleSearchRadius", cp.collectibleSearchRadius ?? "");
-  setValue("cpCollectibleRevealDistance", cp.collectibleRevealDistance ?? "");
-
-  setValue("cpSuspectName", cp.suspectName || "");
-  setValue("cpDialogText", cp.dialogText || "");
-  setChecked("cpHasFingerprint", !!cp.hasFingerprint);
-  setChecked("cpIsFakeClue", !!cp.isFakeClue);
-  setChecked("cpEvidenceIsCritical", !!cp.evidenceIsCritical);
-  setValue("cpFingerprintLabel", cp.fingerprintLabel || "");
-
-  setValue("cpSabotageHint", cp.sabotageHint || "");
-  setChecked("cpCanTriggerSabotage", !!cp.canTriggerSabotage);
-  setChecked("cpSecretObjective", !!cp.secretObjective);
-  setValue("cpSecretObjectiveText", cp.secretObjectiveText || "");
-
-  setChecked("cpCanSwitchRoles", !!cp.canSwitchRoles);
-  setChecked("cpCanTriggerChase", !!cp.canTriggerChase);
-  setValue("cpRoleSwitchValue", cp.roleSwitchValue ?? "");
-  setValue("cpChaseRadius", cp.chaseRadius ?? "");
-
-  toggleTaskFields();
-  applyCheckpointEditorToGameType();
-  renderCheckpointList();
-  setText("cpEditorStatus", "Checkpoint " + (index + 1) + " geselecteerd");
+  updateCheckpointEditorVisibility();
+  setCheckpointStatus(`Checkpoint ${index + 1} geladen.`);
 }
 
 function renderCheckpointList() {
   const container = byId("checkpointList");
   if (!container) return;
 
-  container.innerHTML = "";
-
-  if (!checkpoints.length) {
-    container.innerHTML = "<p>Nog geen checkpoints voor deze stad.</p>";
+  if (!currentCheckpoints.length) {
+    container.innerHTML = "<p>Nog geen checkpoints toegevoegd.</p>";
     return;
   }
 
-  checkpoints.forEach((cp, index) => {
-    const div = document.createElement("div");
-    div.className = "checkpoint-card" + (selectedIndex === index ? " selected-card" : "");
+  container.innerHTML = currentCheckpoints.map((cp, index) => `
+    <div class="group-card">
+      <strong>${index + 1}. ${cp.name || "Checkpoint"}</strong><br>
+      ${Array.isArray(cp.coords) ? `${cp.coords[0]}, ${cp.coords[1]}` : "-"}<br><br>
+      <button type="button" data-cp-index="${index}">Bewerk checkpoint</button>
+    </div>
+  `).join("");
 
-    let extra = "";
-    const type = cp.taskType || "text";
-
-    if (type === "multipleChoice") {
-      extra = `<p><strong>Opties:</strong> ${(cp.options || []).join(" | ")}</p>`;
-    } else if (type === "matching") {
-      extra = `<p><strong>Matching:</strong> ${(cp.leftItems || []).length} koppels</p>`;
-    } else if (type === "imagePuzzle") {
-      extra = `<p><strong>Afbeelding:</strong> ${cp.imageUrl || "-"}</p>`;
-    } else if (type === "photo") {
-      extra = `<p><strong>Type:</strong> Foto-opdracht</p>`;
-    } else {
-      extra = `<p><strong>Antwoorden:</strong> ${(cp.answers || []).join(", ")}</p>`;
-    }
-
-    const itemInfo = cp.collectible?.name
-      ? `<p><strong>Item:</strong> ${cp.collectible.icon || "❓"} ${cp.collectible.name}</p>`
-      : "";
-
-    const murderInfo =
-      cp.suspectName || cp.dialogText || cp.hasFingerprint || cp.isFakeClue
-        ? `
-          ${cp.suspectName ? `<p><strong>Verdachte:</strong> ${cp.suspectName}</p>` : ""}
-          ${cp.hasFingerprint ? `<p><strong>Afdruk:</strong> ja</p>` : ""}
-          ${cp.isFakeClue ? `<p><strong>Vals spoor:</strong> ja</p>` : ""}
-        `
-        : "";
-
-    const moleInfo =
-      cp.canTriggerSabotage || cp.secretObjective
-        ? `
-          ${cp.canTriggerSabotage ? `<p><strong>Sabotage:</strong> mogelijk</p>` : ""}
-          ${cp.secretObjective ? `<p><strong>Geheime opdracht:</strong> ja</p>` : ""}
-        `
-        : "";
-
-    const huntersInfo =
-      cp.canSwitchRoles || cp.canTriggerChase
-        ? `
-          ${cp.canSwitchRoles ? `<p><strong>Rolwissel:</strong> mogelijk</p>` : ""}
-          ${cp.canTriggerChase ? `<p><strong>Jachtfase:</strong> mogelijk</p>` : ""}
-        `
-        : "";
-
-    div.innerHTML = `
-      <h3>${index + 1}. ${cp.name || "Checkpoint"}</h3>
-      <p><strong>Type:</strong> ${taskTypeLabel(type)}</p>
-      <p><strong>Locatie:</strong> ${cp.coords?.[0] ?? "-"}, ${cp.coords?.[1] ?? "-"}</p>
-      <p><strong>Radius:</strong> ${cp.radius ?? "-"} m</p>
-      <p><strong>Vraag:</strong> ${cp.question || "-"}</p>
-      ${cp.story ? `<p><strong>Story:</strong> ${cp.story}</p>` : ""}
-      ${cp.video ? `<p><strong>Video:</strong> ${cp.video}</p>` : ""}
-      ${cp.audio ? `<p><strong>Audio:</strong> ${cp.audio}</p>` : ""}
-      ${cp.image ? `<p><strong>Afbeelding:</strong> ${cp.image}</p>` : ""}
-      ${itemInfo}
-      ${murderInfo}
-      ${moleInfo}
-      ${huntersInfo}
-      ${extra}
-      <div class="button-grid">
-        <button type="button" data-edit-index="${index}">Bewerk</button>
-        <button type="button" data-delete-index="${index}">Verwijder</button>
-      </div>
-    `;
-
-    container.appendChild(div);
-  });
-
-  container.querySelectorAll("[data-edit-index]").forEach((button) => {
-    button.addEventListener("click", () => {
-      const index = Number(button.getAttribute("data-edit-index"));
-      loadCheckpointIntoForm(index);
-    });
-  });
-
-  container.querySelectorAll("[data-delete-index]").forEach((button) => {
-    button.addEventListener("click", () => {
-      const index = Number(button.getAttribute("data-delete-index"));
-      deleteCheckpoint(index);
+  container.querySelectorAll("[data-cp-index]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      loadCheckpointIntoEditor(Number(btn.getAttribute("data-cp-index")));
     });
   });
 }
 
-function buildCheckpointFromForm() {
-  const name = getValue("cpName").trim();
-  const lat = Number(getValue("cpLat"));
-  const lng = Number(getValue("cpLng"));
-  const radius = Number(getValue("cpRadius"));
-  const taskType = getValue("cpTaskType") || "text";
-  const question = getValue("cpQuestion").trim();
+function updateCheckpointEditorVisibility() {
+  const type = byId("cpTaskType")?.value || "text";
 
-  if (!name || Number.isNaN(lat) || Number.isNaN(lng) || Number.isNaN(radius) || !question) {
-    return null;
-  }
+  byId("cpTextAnswersWrapper")?.classList.toggle("hidden", !(type === "text" || type === "riddle"));
+  byId("cpMultipleChoiceWrapper")?.classList.toggle("hidden", type !== "multipleChoice");
+  byId("cpMatchingWrapper")?.classList.toggle("hidden", type !== "matching");
+  byId("cpImagePuzzleWrapper")?.classList.toggle("hidden", type !== "imagePuzzle");
+  byId("cpPhotoWrapper")?.classList.toggle("hidden", type !== "photo");
+}
 
-  const pointsCorrect = Number(getValue("cpPointsCorrect") || 10);
-  const pointsAfterMaxTries = Number(getValue("cpPointsAfterMaxTries") || 4);
+function loadCityIntoForm(cityKey, cityData, checkpoints = []) {
+  currentCityKey = cityKey;
+  currentCheckpoints = checkpoints;
 
-  const cp = {
-    name,
-    coords: [lat, lng],
-    radius,
-    taskType,
-    story: getValue("cpStory").trim(),
-    question,
-    video: getValue("cpVideo").trim(),
-    audio: getValue("cpAudio").trim(),
-    image: getValue("cpImage").trim(),
-    pointsCorrect,
-    pointsAfterMaxTries
+  const city = {
+    name: cityData?.name || getCityRecord(cityKey).name,
+    center: Array.isArray(cityData?.center) ? cityData.center : getCityRecord(cityKey).center,
+    gather: cityData?.gather || getCityRecord(cityKey).gather,
+    themeId: cityData?.themeId || "",
+    gameTypeId: cityData?.gameTypeId || ""
   };
 
-  if (taskType === "text" || taskType === "riddle") {
-    cp.answers = parseCommaList(getValue("cpAnswers")).map(item => item.toLowerCase());
-  }
+  byId("adminCitySelector").value = cityKey || "";
+  byId("cityKeyInput").value = cityKey || "";
+  byId("cityNameInput").value = city.name || "";
+  byId("cityCenterLat").value = city.center?.[0] ?? "";
+  byId("cityCenterLng").value = city.center?.[1] ?? "";
 
-  if (taskType === "multipleChoice") {
-    cp.options = parseCommaList(getValue("cpOptions"));
-    cp.correctOption = Number(getValue("cpCorrectOption") || 0);
-  }
+  const gatherCoords = Array.isArray(city.gather)
+    ? city.gather
+    : city.gather?.coords || city.center;
 
-  if (taskType === "matching") {
-    cp.leftItems = parseCommaList(getValue("cpLeftItems"));
-    cp.rightItems = parseCommaList(getValue("cpRightItems"));
+  byId("gatherNameInput").value = city.gather?.name || "Verzamelpunt";
+  byId("gatherLatInput").value = gatherCoords?.[0] ?? "";
+  byId("gatherLngInput").value = gatherCoords?.[1] ?? "";
+  byId("gatherRadiusInput").value = city.gather?.radius ?? 40;
 
-    cp.correctPairs = {};
-    parseCommaList(getValue("cpCorrectPairs")).forEach((line) => {
-      const [left, ...rest] = line.split("=");
-      const right = rest.join("=").trim();
-      if (left && right) {
-        cp.correctPairs[left.trim()] = right;
-      }
-    });
-  }
-
-  if (taskType === "imagePuzzle") {
-    cp.imageUrl = getValue("cpImageUrl").trim();
-    cp.gridSize = Number(getValue("cpGridSize") || 3);
-  }
-
-  const collectibleEnabled =
-    activeGameType?.modules?.collectibles ||
-    activeGameType?.modules?.inventory ||
-    activeGameType?.modules?.evidenceBook ||
-    activeGameType?.engine === "collectibles" ||
-    activeGameType?.engine === "murder";
-
-  if (collectibleEnabled) {
-    const collectibleName = getValue("cpCollectibleName").trim();
-    const collectibleIcon = getValue("cpCollectibleIcon").trim();
-    const collectibleDescription = getValue("cpCollectibleDescription").trim();
-    const collectibleLockedName = getValue("cpCollectibleLockedName").trim() || "Onbekend spoor";
-    const collectibleLockedIcon = getValue("cpCollectibleLockedIcon").trim() || "❓";
-
-    if (collectibleName || collectibleIcon || collectibleDescription) {
-      cp.collectible = {
-        name: collectibleName || "Onbenoemd item",
-        icon: collectibleIcon || "❓",
-        description: collectibleDescription || "Nieuw item.",
-        lockedName: collectibleLockedName,
-        lockedIcon: collectibleLockedIcon
-      };
-    }
-
-    const collectibleLat = getValue("cpCollectibleLat").trim();
-    const collectibleLng = getValue("cpCollectibleLng").trim();
-    const collectibleSearchRadius = getValue("cpCollectibleSearchRadius").trim();
-    const collectibleRevealDistance = getValue("cpCollectibleRevealDistance").trim();
-
-    if (collectibleLat !== "" && collectibleLng !== "") {
-      const parsedLat = Number(collectibleLat);
-      const parsedLng = Number(collectibleLng);
-      if (!Number.isNaN(parsedLat) && !Number.isNaN(parsedLng)) {
-        cp.collectibleCoords = [parsedLat, parsedLng];
-      }
-    }
-
-    if (collectibleSearchRadius !== "") {
-      const parsedSearchRadius = Number(collectibleSearchRadius);
-      if (!Number.isNaN(parsedSearchRadius)) {
-        cp.collectibleSearchRadius = parsedSearchRadius;
-      }
-    }
-
-    if (collectibleRevealDistance !== "") {
-      const parsedRevealDistance = Number(collectibleRevealDistance);
-      if (!Number.isNaN(parsedRevealDistance)) {
-        cp.collectibleRevealDistance = parsedRevealDistance;
-      }
-    }
-  }
-
-  const murderEnabled =
-    activeGameType?.engine === "murder" ||
-    activeGameType?.modules?.dialogs ||
-    activeGameType?.modules?.evidenceBook ||
-    activeGameType?.modules?.fingerprints ||
-    activeGameType?.modules?.fakeClues;
-
-  if (murderEnabled) {
-    cp.suspectName = getValue("cpSuspectName").trim();
-    cp.dialogText = getValue("cpDialogText").trim();
-    cp.hasFingerprint = getChecked("cpHasFingerprint");
-    cp.isFakeClue = getChecked("cpIsFakeClue");
-    cp.evidenceIsCritical = getChecked("cpEvidenceIsCritical");
-    cp.fingerprintLabel = getValue("cpFingerprintLabel").trim();
-  }
-
-  const moleEnabled =
-    activeGameType?.engine === "mole" ||
-    activeGameType?.modules?.secretRoles ||
-    activeGameType?.modules?.sabotage;
-
-  if (moleEnabled) {
-    cp.sabotageHint = getValue("cpSabotageHint").trim();
-    cp.canTriggerSabotage = getChecked("cpCanTriggerSabotage");
-    cp.secretObjective = getChecked("cpSecretObjective");
-    cp.secretObjectiveText = getValue("cpSecretObjectiveText").trim();
-  }
-
-  const huntersEnabled =
-    activeGameType?.engine === "hunters" ||
-    activeGameType?.modules?.chase;
-
-  if (huntersEnabled) {
-    cp.canSwitchRoles = getChecked("cpCanSwitchRoles");
-    cp.canTriggerChase = getChecked("cpCanTriggerChase");
-
-    const roleSwitchValue = getValue("cpRoleSwitchValue").trim();
-    const chaseRadius = getValue("cpChaseRadius").trim();
-
-    if (roleSwitchValue !== "") {
-      const parsedRoleSwitchValue = Number(roleSwitchValue);
-      if (!Number.isNaN(parsedRoleSwitchValue)) {
-        cp.roleSwitchValue = parsedRoleSwitchValue;
-      }
-    }
-
-    if (chaseRadius !== "") {
-      const parsedChaseRadius = Number(chaseRadius);
-      if (!Number.isNaN(parsedChaseRadius)) {
-        cp.chaseRadius = parsedChaseRadius;
-      }
-    }
-  }
-
-  return cp;
-}
-
-function saveCheckpointToList() {
-  const cp = buildCheckpointFromForm();
-
-  if (!cp) {
-    setText("cpEditorStatus", "Vul minstens naam, latitude, longitude, radius en vraag correct in.");
-    return;
-  }
-
-  if (selectedIndex === null) {
-    checkpoints.push(cp);
-    selectedIndex = checkpoints.length - 1;
-    setText("cpEditorStatus", "Checkpoint toegevoegd aan de lijst.");
-  } else {
-    checkpoints[selectedIndex] = cp;
-    setText("cpEditorStatus", "Checkpoint bijgewerkt in de lijst.");
-  }
+  byId("cityThemeSelector").value = city.themeId || "";
+  byId("cityGameTypeSelector").value = city.gameTypeId || "";
 
   renderCheckpointList();
-  renderMarkers();
-}
+  refreshMap();
+  clearCheckpointEditor();
 
-function deleteCheckpoint(index) {
-  checkpoints.splice(index, 1);
-
-  if (selectedIndex === index) {
-    selectedIndex = null;
-    clearForm();
-  } else if (selectedIndex !== null && selectedIndex > index) {
-    selectedIndex--;
-  }
-
-  setText("cpEditorStatus", "Checkpoint verwijderd.");
-  renderCheckpointList();
-  renderMarkers();
+  setStatus(`Stad "${city.name}" geladen.`);
 }
 
 async function loadCityFromFirebase() {
-  if (!activeCityKey) return;
-
-  const citySnapshot = await get(ref(db, "cities/" + activeCityKey));
-  if (citySnapshot.exists()) {
-    citiesCache[activeCityKey] = citySnapshot.val();
-  }
-
-  const checkpointSnapshot = await get(ref(db, "cityData/" + activeCityKey + "/checkpoints"));
-
-  if (checkpointSnapshot.exists()) {
-    const data = checkpointSnapshot.val();
-    checkpoints = Array.isArray(data) ? data : [];
-    setText("cpEditorStatus", "Stad en checkpoints geladen uit Firebase.");
-  } else {
-    checkpoints = [];
-    setText("cpEditorStatus", "Nog geen checkpoints gevonden in Firebase voor deze stad.");
-  }
-
-  fillCityForm(activeCityKey);
-  selectedIndex = null;
-  renderCheckpointList();
-  renderMarkers();
-  resetMapCity();
-}
-
-function loadTemplateData() {
-  if (!activeCityKey || !fallbackCities[activeCityKey]) {
-    setText("cpEditorStatus", "Geen template gevonden in cities.js voor deze stad.");
+  const cityKey = byId("adminCitySelector")?.value || "";
+  if (!cityKey) {
+    setStatus("Kies eerst een stad.", true);
     return;
   }
 
-  const city = buildFallbackCityRecord(activeCityKey, fallbackCities[activeCityKey]);
+  try {
+    const citySnap = await get(ref(db, "cities/" + cityKey));
+    const cityData = citySnap.exists() ? citySnap.val() : getCityRecord(cityKey);
 
-  fillCityForm(activeCityKey);
-  setValue("cityNameInput", city.name);
-  setValue("cityCenterLat", city.center[0]);
-  setValue("cityCenterLng", city.center[1]);
-  setValue("gatherNameInput", city.gather.name);
-  setValue("gatherLatInput", city.gather.coords[0]);
-  setValue("gatherLngInput", city.gather.coords[1]);
-  setValue("gatherRadiusInput", city.gather.radius);
-  populateThemeSelector(city.themeId || "");
-  populateGameTypeSelector(city.gameTypeId || "");
-  applyCheckpointEditorToGameType();
-
-  checkpoints = JSON.parse(JSON.stringify(fallbackCities[activeCityKey].defaultCheckpoints || []));
-  selectedIndex = null;
-  renderCheckpointList();
-  renderMarkers();
-  resetMapCity();
-
-  setText("cpEditorStatus", "Template geladen voor " + city.name + ".");
+    const checkpoints = await loadCheckpointsForCity(cityKey);
+    loadCityIntoForm(cityKey, cityData, checkpoints);
+  } catch (error) {
+    console.error(error);
+    setStatus("Laden mislukt: " + error.message, true);
+  }
 }
 
-async function saveCityToFirebase() {
-  const cityKey = getValue("cityKeyInput").trim().toLowerCase();
-  const cityName = getValue("cityNameInput").trim();
-  const centerLat = Number(getValue("cityCenterLat"));
-  const centerLng = Number(getValue("cityCenterLng"));
-  const gatherName = getValue("gatherNameInput").trim() || "Verzamelpunt";
-  const gatherLat = Number(getValue("gatherLatInput"));
-  const gatherLng = Number(getValue("gatherLngInput"));
-  const gatherRadius = Number(getValue("gatherRadiusInput"));
-  const themeId = getValue("cityThemeSelector").trim();
-  const gameTypeId = getValue("cityGameTypeSelector").trim();
-
-  if (
-    !cityKey ||
-    !cityName ||
-    Number.isNaN(centerLat) ||
-    Number.isNaN(centerLng) ||
-    Number.isNaN(gatherLat) ||
-    Number.isNaN(gatherLng) ||
-    Number.isNaN(gatherRadius)
-  ) {
-    setText("cpEditorStatus", "Vul alle stadsvelden correct in.");
+async function loadTemplateCity() {
+  const cityKey = byId("adminCitySelector")?.value || "";
+  if (!cityKey) {
+    setStatus("Kies eerst een stad.", true);
     return;
   }
 
-  const cityPayload = {
-    name: cityName,
-    center: [centerLat, centerLng],
+  const city = getCityRecord(cityKey);
+  const checkpoints = Array.isArray(fallbackCities[cityKey]?.defaultCheckpoints)
+    ? fallbackCities[cityKey].defaultCheckpoints
+    : [];
+
+  loadCityIntoForm(cityKey, city, checkpoints);
+  setStatus(`Template voor "${city.name}" geladen.`);
+}
+
+function startNewCity() {
+  currentCityKey = "";
+  currentCheckpoints = [];
+  selectedCheckpointIndex = -1;
+
+  byId("adminCitySelector").value = "";
+  byId("cityKeyInput").value = "";
+  byId("cityNameInput").value = "";
+  byId("cityCenterLat").value = "";
+  byId("cityCenterLng").value = "";
+  byId("gatherNameInput").value = "Verzamelpunt";
+  byId("gatherLatInput").value = "";
+  byId("gatherLngInput").value = "";
+  byId("gatherRadiusInput").value = "40";
+  byId("cityThemeSelector").value = "";
+  byId("cityGameTypeSelector").value = "";
+
+  renderCheckpointList();
+  clearCheckpointEditor();
+  refreshMap();
+  setStatus("Nieuwe stad gestart.");
+}
+
+async function saveCity() {
+  const cityKey = byId("cityKeyInput")?.value?.trim().toLowerCase() || "";
+
+  if (!cityKey) {
+    setStatus("Vul eerst een geldige stads-ID in.", true);
+    return;
+  }
+
+  const cityData = {
+    name: byId("cityNameInput")?.value?.trim() || cityKey,
+    center: [
+      Number(byId("cityCenterLat")?.value || 50.85),
+      Number(byId("cityCenterLng")?.value || 4.35)
+    ],
     gather: {
-      name: gatherName,
-      coords: [gatherLat, gatherLng],
-      radius: gatherRadius
+      name: byId("gatherNameInput")?.value?.trim() || "Verzamelpunt",
+      coords: [
+        Number(byId("gatherLatInput")?.value || byId("cityCenterLat")?.value || 50.85),
+        Number(byId("gatherLngInput")?.value || byId("cityCenterLng")?.value || 4.35)
+      ],
+      radius: Number(byId("gatherRadiusInput")?.value || 40)
     },
-    themeId: themeId || "",
-    gameTypeId: gameTypeId || ""
+    themeId: byId("cityThemeSelector")?.value || "",
+    gameTypeId: byId("cityGameTypeSelector")?.value || ""
   };
 
-  await set(ref(db, "cities/" + cityKey), cityPayload);
-  await set(ref(db, "cityData/" + cityKey + "/checkpoints"), checkpoints);
+  try {
+    await set(ref(db, "cities/" + cityKey), cityData);
+    await set(ref(db, "cityData/" + cityKey + "/checkpoints"), currentCheckpoints);
 
-  citiesCache[cityKey] = cityPayload;
-  activeCityKey = cityKey;
-
-  populateCitySelector();
-  fillCityForm(cityKey);
-  resetMapCity();
-
-  setText("cpEditorStatus", "Stad en checkpoints opgeslagen in Firebase.");
-}
-
-async function deleteCityFromFirebase() {
-  if (!activeCityKey) return;
-
-  const confirmed = confirm("Ben je zeker dat je deze stad en alle checkpoints wilt verwijderen?");
-  if (!confirmed) return;
-
-  await remove(ref(db, "cities/" + activeCityKey));
-  await remove(ref(db, "cityData/" + activeCityKey));
-
-  delete citiesCache[activeCityKey];
-
-  const remainingKeys = mergedCityKeys();
-  activeCityKey = remainingKeys[0] || null;
-  checkpoints = [];
-  selectedIndex = null;
-
-  populateCitySelector();
-
-  if (activeCityKey) {
-    fillCityForm(activeCityKey);
-    resetMapCity();
-  } else {
-    setText("adminCityInfo", "Geen stad geselecteerd.");
+    currentCityKey = cityKey;
+    byId("adminCitySelector").value = cityKey;
+    setStatus(`Stad "${cityData.name}" opgeslagen.`);
+  } catch (error) {
+    console.error(error);
+    setStatus("Opslaan mislukt: " + error.message, true);
   }
-
-  renderCheckpointList();
-  renderMarkers();
-  clearForm();
-
-  setText("cpEditorStatus", "Stad verwijderd uit Firebase.");
 }
 
-function startNewCityForm() {
-  activeCityKey = null;
-
-  const selector = byId("adminCitySelector");
-  if (selector) selector.value = "";
-
-  setValue("cityKeyInput", "");
-  setValue("cityNameInput", "");
-  setValue("cityCenterLat", "");
-  setValue("cityCenterLng", "");
-  setValue("gatherNameInput", "Verzamelpunt");
-  setValue("gatherLatInput", "");
-  setValue("gatherLngInput", "");
-  setValue("gatherRadiusInput", "40");
-  populateThemeSelector("");
-  populateGameTypeSelector("");
-
-  checkpoints = [];
-  selectedIndex = null;
-  renderCheckpointList();
-  renderMarkers();
-  clearForm();
-
-  setText("adminCityInfo", "Nieuwe stad aanmaken");
-  setText("cpEditorStatus", "Vul de nieuwe stadsgegevens in.");
-}
-
-byId("adminCitySelector")?.addEventListener("change", async (e) => {
-  activeCityKey = e.target.value || null;
-
-  if (activeCityKey) {
-    fillCityForm(activeCityKey);
-  } else {
-    setText("adminCityInfo", "Geen stad geselecteerd.");
-  }
-
-  checkpoints = [];
-  selectedIndex = null;
-  clearForm();
-  renderCheckpointList();
-  renderMarkers();
-  resetMapCity();
-});
-
-byId("cpTaskType")?.addEventListener("change", toggleTaskFields);
-byId("cityGameTypeSelector")?.addEventListener("change", applyCheckpointEditorToGameType);
-byId("loadCityButton")?.addEventListener("click", loadCityFromFirebase);
-byId("loadTemplateButton")?.addEventListener("click", loadTemplateData);
-byId("newCityButton")?.addEventListener("click", startNewCityForm);
-byId("saveCityButton")?.addEventListener("click", saveCityToFirebase);
-byId("deleteCityButton")?.addEventListener("click", deleteCityFromFirebase);
-byId("addCheckpointButton")?.addEventListener("click", clearForm);
-byId("updateCheckpointButton")?.addEventListener("click", saveCheckpointToList);
-byId("deleteCheckpointButton")?.addEventListener("click", () => {
-  if (selectedIndex === null) {
-    setText("cpEditorStatus", "Selecteer eerst een checkpoint.");
+async function deleteCity() {
+  const cityKey = byId("cityKeyInput")?.value?.trim().toLowerCase() || "";
+  if (!cityKey) {
+    setStatus("Geen stad geselecteerd om te verwijderen.", true);
     return;
   }
-  deleteCheckpoint(selectedIndex);
-});
 
-toggleTaskFields();
-clearForm();
-initMap();
+  const ok = confirm(`Verwijder stad "${cityKey}"?`);
+  if (!ok) return;
 
-onValue(ref(db, "themes"), (snapshot) => {
-  themesCache = snapshot.val() || {};
-  populateThemeSelector(getCityRecord(activeCityKey || "")?.themeId || "");
-});
+  try {
+    await remove(ref(db, "cities/" + cityKey));
+    await remove(ref(db, "cityData/" + cityKey));
+    startNewCity();
+    setStatus(`Stad "${cityKey}" verwijderd.`);
+  } catch (error) {
+    console.error(error);
+    setStatus("Verwijderen mislukt: " + error.message, true);
+  }
+}
 
-onValue(ref(db, "speltypes"), (snapshot) => {
-  speltypesCache = snapshot.val() || {};
-  populateGameTypeSelector(getCityRecord(activeCityKey || "")?.gameTypeId || "");
-  applyCheckpointEditorToGameType();
-});
+function addCheckpoint() {
+  const cp = collectCheckpointFromEditor();
+  currentCheckpoints.push(cp);
+  renderCheckpointList();
+  refreshMap();
+  clearCheckpointEditor();
+  setCheckpointStatus("Nieuw checkpoint toegevoegd.");
+}
 
-onValue(ref(db, "cities"), (snapshot) => {
-  citiesCache = snapshot.val() || {};
-
-  const previousKey = activeCityKey;
-  populateCitySelector();
-
-  if (previousKey && mergedCityKeys().includes(previousKey)) {
-    activeCityKey = previousKey;
-  } else if (!activeCityKey) {
-    activeCityKey = mergedCityKeys()[0] || null;
+function updateCheckpoint() {
+  if (selectedCheckpointIndex < 0 || selectedCheckpointIndex >= currentCheckpoints.length) {
+    setCheckpointStatus("Kies eerst een checkpoint om bij te werken.", true);
+    return;
   }
 
-  if (activeCityKey) {
-    const selector = byId("adminCitySelector");
-    if (selector) selector.value = activeCityKey;
-    fillCityForm(activeCityKey);
-    resetMapCity();
+  currentCheckpoints[selectedCheckpointIndex] = collectCheckpointFromEditor();
+  renderCheckpointList();
+  refreshMap();
+  setCheckpointStatus("Checkpoint bijgewerkt.");
+}
+
+function deleteCheckpoint() {
+  if (selectedCheckpointIndex < 0 || selectedCheckpointIndex >= currentCheckpoints.length) {
+    setCheckpointStatus("Kies eerst een checkpoint om te verwijderen.", true);
+    return;
   }
-});
+
+  const ok = confirm("Verwijder dit checkpoint?");
+  if (!ok) return;
+
+  currentCheckpoints.splice(selectedCheckpointIndex, 1);
+  renderCheckpointList();
+  refreshMap();
+  clearCheckpointEditor();
+  setCheckpointStatus("Checkpoint verwijderd.");
+}
+
+function attachEvents() {
+  byId("loadCityButton")?.addEventListener("click", loadCityFromFirebase);
+  byId("loadTemplateButton")?.addEventListener("click", loadTemplateCity);
+  byId("newCityButton")?.addEventListener("click", startNewCity);
+  byId("saveCityButton")?.addEventListener("click", saveCity);
+  byId("deleteCityButton")?.addEventListener("click", deleteCity);
+
+  byId("addCheckpointButton")?.addEventListener("click", addCheckpoint);
+  byId("updateCheckpointButton")?.addEventListener("click", updateCheckpoint);
+  byId("deleteCheckpointButton")?.addEventListener("click", deleteCheckpoint);
+
+  byId("cpTaskType")?.addEventListener("change", updateCheckpointEditorVisibility);
+
+  [
+    "cityCenterLat", "cityCenterLng", "gatherLatInput", "gatherLngInput"
+  ].forEach((id) => {
+    byId(id)?.addEventListener("input", refreshMap);
+  });
+}
+
+function initDataListeners() {
+  onValue(ref(db, "cities"), (snapshot) => {
+    citiesCache = snapshot.val() || {};
+    populateCitySelector();
+  });
+
+  onValue(ref(db, "themes"), (snapshot) => {
+    themesCache = snapshot.val() || {};
+    populateThemeSelector();
+  });
+
+  onValue(ref(db, "speltypes"), (snapshot) => {
+    gameTypesCache = snapshot.val() || {};
+    populateGameTypeSelector();
+  });
+}
+
+function initApp() {
+  initMap();
+  attachEvents();
+  updateCheckpointEditorVisibility();
+  initDataListeners();
+  startNewCity();
+}
 
 onAuthStateChanged(auth, (user) => {
-  setProtectedUIVisible(!!user);
+  const loginScreen = byId("loginScreen");
+  const appContent = byId("appContent");
+  const loginStatus = byId("loginStatus");
+
+  if (user) {
+    if (loginScreen) loginScreen.style.display = "none";
+    if (appContent) appContent.style.display = "block";
+    if (loginStatus) loginStatus.innerText = "Ingelogd als: " + user.email;
+    initApp();
+  } else {
+    if (loginScreen) loginScreen.style.display = "block";
+    if (appContent) appContent.style.display = "none";
+  }
 });
