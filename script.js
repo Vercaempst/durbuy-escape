@@ -650,6 +650,11 @@ function updateCheckpointVisuals() {
         fillOpacity: 0.08
       }).addTo(map);
     }
+    if (collectibleSearchCircle) {
+  collectibleSearchCircle.setStyle({
+    className: "collectible-search-zone pulse"
+  });
+  }
     return;
   }
 
@@ -1683,6 +1688,9 @@ async function maybeCheckCollectiblePickup() {
   if (!groupData || !pendingCollectibleCheckpointId) return;
   if (currentLat == null || currentLng == null) return;
   if (collectiblePickupInProgress) return;
+  if (dist <= revealDistance && dist > 3) {
+  byId("status").innerText = "🔎 Je bent dichtbij het item...";
+  }
 
   const cp = checkpoints.find((c) => c.id === pendingCollectibleCheckpointId);
   if (!cp || !cp.collectible) return;
@@ -1911,8 +1919,7 @@ function openEvidenceModal() {
 function findNearbyTargetGroup(range = 25) {
   if (currentLat == null || currentLng == null) return null;
 
-  let closest = null;
-  let closestDist = Infinity;
+  let candidates = [];
 
   Object.entries(groupsCache || {}).forEach(([id, g]) => {
     if (!g || id === groupId) return;
@@ -1921,13 +1928,21 @@ function findNearbyTargetGroup(range = 25) {
     if (g.finished) return;
 
     const dist = distanceMeters([currentLat, currentLng], [g.lat, g.lng]);
-    if (dist <= range && dist < closestDist) {
-      closest = { id, data: g, distance: dist };
-      closestDist = dist;
+
+    if (dist <= range) {
+      candidates.push({
+        id,
+        data: g,
+        distance: dist
+      });
     }
   });
 
-  return closest;
+  if (!candidates.length) return null;
+
+  // dichtste kiezen
+  candidates.sort((a, b) => a.distance - b.distance);
+  return candidates[0];
 }
 
 async function markEvidenceItemUsed(index) {
@@ -2027,16 +2042,29 @@ async function useEvidenceItem(itemIndex) {
 
   if (!item || !isUsableEvidenceItem(item)) return;
 
+  const range = item.actionRange || 25;
+
   if (item.actionType === "shield") {
-    const success = await applyEffectToTargetGroup(groupId, item);
-    if (success) {
-      await markEvidenceItemUsed(itemIndex);
-      updateEvidenceUI();
-      renderEvidenceDetail(0);
-      alert("Schild geactiveerd.");
-    }
+    await applyEffectToTargetGroup(groupId, item);
+    await markEvidenceItemUsed(itemIndex);
+    alert("🛡️ Schild geactiveerd!");
     return;
   }
+
+  const nearby = findNearbyTargetGroup(range);
+
+  if (!nearby) {
+    alert(`❌ Geen groep binnen ${range} meter.`);
+    return;
+  }
+
+  const success = await applyEffectToTargetGroup(nearby.id, item);
+  if (!success) return;
+
+  await markEvidenceItemUsed(itemIndex);
+
+  alert(`⚡ Effect toegepast op groep ${nearby.data.groupNumber}!`);
+}
 
   const nearby = findNearbyTargetGroup(item.actionRange || 25);
   if (!nearby) {
