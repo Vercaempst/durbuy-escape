@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>City Escape Admin</title>
-  <link rel="stylesheet" href="style.css?v=20260328-admin-koppeling-1">
+  <link rel="stylesheet" href="style.css?v=20260328-admin-ui-1">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 </head>
 <body>
@@ -23,6 +23,7 @@
       <div class="card">
         <h1>City Escape Admin</h1>
         <p id="loginStatus"></p>
+
         <div class="button-grid">
           <button onclick="logout()">Logout</button>
           <button type="button" onclick="window.location.href='themes.html'">Open themabeheer</button>
@@ -31,9 +32,9 @@
       </div>
 
       <div class="card">
-        <h2>Stad beheren</h2>
+        <h2>Stad kiezen of aanmaken</h2>
 
-        <label for="adminCitySelector">Kies een stad</label>
+        <label for="adminCitySelector">Kies een bestaande stad</label>
         <select id="adminCitySelector"></select>
 
         <div class="button-grid">
@@ -42,8 +43,20 @@
           <button id="newCityButton" type="button">Nieuwe stad</button>
         </div>
 
+        <p class="small-note">
+          Je kunt een bestaande stad laden, een template als basis gebruiken of volledig opnieuw starten.
+        </p>
+      </div>
+
+      <div class="card">
+        <h2>Basisgegevens van de stad</h2>
+
         <label for="cityKeyInput">Interne stads-ID</label>
         <input id="cityKeyInput" type="text" placeholder="bv. durbuy">
+
+        <p class="small-note">
+          Unieke technische naam van de stad. Gebruik best kleine letters zonder spaties.
+        </p>
 
         <label for="cityNameInput">Naam van de stad</label>
         <input id="cityNameInput" type="text" placeholder="bv. Durbuy">
@@ -51,42 +64,66 @@
         <div class="button-grid">
           <div>
             <label for="cityCenterLat">Center latitude</label>
-            <input id="cityCenterLat" type="number" step="any" placeholder="latitude">
+            <input id="cityCenterLat" type="number" step="any" placeholder="Latitude van het stadscentrum">
           </div>
+
           <div>
             <label for="cityCenterLng">Center longitude</label>
-            <input id="cityCenterLng" type="number" step="any" placeholder="longitude">
+            <input id="cityCenterLng" type="number" step="any" placeholder="Longitude van het stadscentrum">
           </div>
         </div>
+
+        <p class="small-note">
+          Dit is het punt waarop de kaart standaard opent in de admin en bij de leerlingen.
+        </p>
+      </div>
+
+      <div class="card">
+        <h2>Verzamelpunt / eindpunt</h2>
 
         <label for="gatherNameInput">Naam verzamelpunt</label>
         <input id="gatherNameInput" type="text" placeholder="bv. Verzamelpunt">
 
         <div class="button-grid">
           <div>
-            <label for="gatherLatInput">Gather latitude</label>
-            <input id="gatherLatInput" type="number" step="any" placeholder="latitude">
+            <label for="gatherLatInput">Latitude verzamelpunt</label>
+            <input id="gatherLatInput" type="number" step="any" placeholder="Latitude van het verzamelpunt">
           </div>
+
           <div>
-            <label for="gatherLngInput">Gather longitude</label>
-            <input id="gatherLngInput" type="number" step="any" placeholder="longitude">
+            <label for="gatherLngInput">Longitude verzamelpunt</label>
+            <input id="gatherLngInput" type="number" step="any" placeholder="Longitude van het verzamelpunt">
           </div>
         </div>
 
         <label for="gatherRadiusInput">Straal verzamelpunt</label>
         <input id="gatherRadiusInput" type="number" placeholder="bv. 40">
 
-        <h3>Gekoppeld thema</h3>
-        <select id="cityThemeSelector"></select>
         <p class="small-note">
-          Kies hier welk thema deze stad gebruikt.
+          Dit punt wordt gebruikt als einddoel of samenkomstpunt wanneer het speltype dat nodig heeft.
+        </p>
+      </div>
+
+      <div class="card">
+        <h2>Thema en speltype koppelen</h2>
+
+        <label for="cityThemeSelector">Thema van de stad</label>
+        <select id="cityThemeSelector"></select>
+
+        <p class="small-note">
+          Het thema bepaalt de visuele stijl, kleuren, icoontjes en sfeer.
         </p>
 
-        <h3>Gekoppeld speltype</h3>
+        <label for="cityGameTypeSelector">Speltype van de stad</label>
         <select id="cityGameTypeSelector"></select>
+
         <p class="small-note">
-          Kies hier welk speltype deze stad gebruikt. Dit bepaalt welke mechanismen actief zijn tijdens het spel.
+          Het speltype bepaalt welke mechanics actief zijn, zoals collectibles, sabotage, bewijsstukken of jacht.
         </p>
+      </div>
+
+      <div class="card">
+        <h2>Stad bewaren of verwijderen</h2>
 
         <div class="button-grid">
           <button id="saveCityButton" type="button">Bewaar stad in Firebase</button>
@@ -99,17 +136,36 @@
       <div id="map" style="height: 420px;"></div>
 
       <div class="card">
-        <h2>Checkpoint bewerken</h2>
+        <h2>Checkpoint-editor</h2>
+        <p class="small-note">
+          Voeg hier checkpoints toe of bewerk een bestaand checkpoint. De velden hieronder passen zich automatisch aan aan het gekozen speltype.
+        </p>
 
-        <input id="cpName" type="text" placeholder="Naam checkpoint">
+        <h3>Basis checkpoint</h3>
+
+        <label for="cpName">Naam checkpoint</label>
+        <input id="cpName" type="text" placeholder="Naam van dit checkpoint">
 
         <div class="button-grid">
-          <input id="cpLat" type="number" step="any" placeholder="Latitude">
-          <input id="cpLng" type="number" step="any" placeholder="Longitude">
+          <div>
+            <label for="cpLat">Latitude checkpoint</label>
+            <input id="cpLat" type="number" step="any" placeholder="Latitude van checkpoint">
+          </div>
+
+          <div>
+            <label for="cpLng">Longitude checkpoint</label>
+            <input id="cpLng" type="number" step="any" placeholder="Longitude van checkpoint">
+          </div>
         </div>
 
-        <input id="cpRadius" type="number" placeholder="Radius in meter">
+        <label for="cpRadius">Straal checkpoint</label>
+        <input id="cpRadius" type="number" placeholder="bv. 20">
 
+        <p class="small-note">
+          Zodra leerlingen binnen deze straal komen, wordt het checkpoint actief.
+        </p>
+
+        <label for="cpTaskType">Type opdracht</label>
         <select id="cpTaskType">
           <option value="text">Tekstvraag</option>
           <option value="riddle">Raadsel</option>
@@ -120,51 +176,81 @@
         </select>
 
         <div id="cpStoryBlock">
-          <textarea id="cpStory" placeholder="Verhaaltekst / sfeer bij checkpoint"></textarea>
+          <label for="cpStory">Verhaaltekst / sfeer</label>
+          <textarea id="cpStory" placeholder="Sfeer, context of verhaal bij dit checkpoint"></textarea>
         </div>
 
-        <textarea id="cpQuestion" placeholder="Vraag / opdracht"></textarea>
+        <label for="cpQuestion">Vraag / opdracht</label>
+        <textarea id="cpQuestion" placeholder="Vraag of opdracht voor de leerlingen"></textarea>
 
         <div id="cpTextAnswersWrapper">
+          <label for="cpAnswers">Juiste antwoorden</label>
           <textarea id="cpAnswers" placeholder="Juiste antwoorden, gescheiden door komma's"></textarea>
         </div>
 
         <div id="cpMultipleChoiceWrapper" class="hidden">
+          <label for="cpOptions">Antwoordopties</label>
           <textarea id="cpOptions" placeholder="Antwoordopties, gescheiden door komma's"></textarea>
-          <input id="cpCorrectOption" type="number" min="0" placeholder="Index juiste optie (start bij 0)">
+
+          <label for="cpCorrectOption">Juiste optie</label>
+          <input id="cpCorrectOption" type="number" min="0" placeholder="Index juiste optie, start bij 0">
         </div>
 
         <div id="cpMatchingWrapper" class="hidden">
+          <label for="cpLeftItems">Linker kolom</label>
           <textarea id="cpLeftItems" placeholder="Linker kolom, gescheiden door komma's"></textarea>
+
+          <label for="cpRightItems">Rechter kolom</label>
           <textarea id="cpRightItems" placeholder="Rechter kolom, gescheiden door komma's"></textarea>
-          <textarea id="cpCorrectPairs" placeholder="Correcte koppels, bv: Brug=Over de rivier, Fontein=Water in het midden"></textarea>
+
+          <label for="cpCorrectPairs">Correcte koppels</label>
+          <textarea id="cpCorrectPairs" placeholder="Gebruik telkens links=rechts, één koppel per lijn"></textarea>
         </div>
 
         <div id="cpImagePuzzleWrapper" class="hidden">
-          <input id="cpImageUrl" type="text" placeholder="Afbeelding URL voor puzzel">
-          <input id="cpGridSize" type="number" min="2" max="6" placeholder="Grid size, bv. 3">
+          <label for="cpImageUrl">Afbeelding voor puzzel</label>
+          <input id="cpImageUrl" type="text" placeholder="URL van de puzzelafbeelding">
+
+          <label for="cpGridSize">Rastergrootte</label>
+          <input id="cpGridSize" type="number" min="2" max="6" placeholder="bv. 3">
         </div>
 
         <div id="cpPhotoWrapper" class="hidden">
           <p class="small-note">
-            Foto-opdrachten gebruiken de vraagtekst hierboven. Leerlingen uploaden hun foto via het spel.
+            Foto-opdrachten gebruiken de vraagtekst hierboven. Leerlingen uploaden hun foto tijdens het spel.
           </p>
         </div>
 
         <h3>Media</h3>
-        <input id="cpVideo" type="text" placeholder="Video URL (YouTube, Vimeo of embed)">
-        <input id="cpAudio" type="text" placeholder="Audio URL">
-        <input id="cpImage" type="text" placeholder="Afbeelding URL">
+
+        <label for="cpVideo">Video URL</label>
+        <input id="cpVideo" type="text" placeholder="YouTube, Vimeo of embedlink">
+
+        <label for="cpAudio">Audio URL</label>
+        <input id="cpAudio" type="text" placeholder="Audiofragment of geluidslink">
+
+        <label for="cpImage">Afbeelding URL</label>
+        <input id="cpImage" type="text" placeholder="Afbeelding of extra visuele ondersteuning">
 
         <h3>Punten</h3>
+
         <div class="button-grid">
-          <input id="cpPointsCorrect" type="number" placeholder="Punten bij juist antwoord">
-          <input id="cpPointsAfterMaxTries" type="number" placeholder="Punten na max tries">
+          <div>
+            <label for="cpPointsCorrect">Punten bij juist antwoord</label>
+            <input id="cpPointsCorrect" type="number" placeholder="bv. 10">
+          </div>
+
+          <div>
+            <label for="cpPointsAfterMaxTries">Punten na max tries</label>
+            <input id="cpPointsAfterMaxTries" type="number" placeholder="bv. 3">
+          </div>
         </div>
 
         <div id="cpCollectibleSection">
           <h3 id="cpCollectibleSectionTitle">Collectible / dossieritem</h3>
-          <input id="cpCollectibleName" type="text" placeholder="Naam item, bv. Ritueel mes">
+
+          <label for="cpCollectibleName">Naam item</label>
+          <input id="cpCollectibleName" type="text" placeholder="Naam van het item">
 
           <div class="button-grid">
             <div>
@@ -216,69 +302,92 @@
             </div>
           </div>
 
-          <input id="cpCollectibleLockedName" type="text" placeholder="Verborgen naam, bv. Onbekend spoor">
-          <textarea id="cpCollectibleDescription" placeholder="Beschrijving van het item"></textarea>
+          <label for="cpCollectibleLockedName">Verborgen naam</label>
+          <input id="cpCollectibleLockedName" type="text" placeholder="Bijvoorbeeld: Onbekend spoor">
+
+          <label for="cpCollectibleDescription">Beschrijving item</label>
+          <textarea id="cpCollectibleDescription" placeholder="Beschrijving of betekenis van het item"></textarea>
         </div>
 
         <div id="cpCollectibleAdvancedSection">
-          <h3>Collectible zoekinstellingen</h3>
+          <h3>Zoekinstellingen voor object</h3>
+
           <p class="small-note">
-            Handig voor speltypes met verborgen objecten, zoekzones of pas-zichtbaar-dichtbij.
+            Gebruik deze velden als een object apart verborgen ligt en niet exact op de checkpointlocatie.
           </p>
 
-          <label class="small-note">
-            Aparte locatie voor collectible. Laat leeg om checkpointlocatie te gebruiken.
-          </label>
-
           <div class="button-grid">
-            <input id="cpCollectibleLat" type="number" step="any" placeholder="Collectible latitude">
-            <input id="cpCollectibleLng" type="number" step="any" placeholder="Collectible longitude">
+            <div>
+              <label for="cpCollectibleLat">Latitude van object</label>
+              <input id="cpCollectibleLat" type="number" step="any" placeholder="Latitude van verborgen object">
+            </div>
+
+            <div>
+              <label for="cpCollectibleLng">Longitude van object</label>
+              <input id="cpCollectibleLng" type="number" step="any" placeholder="Longitude van verborgen object">
+            </div>
           </div>
 
           <div class="button-grid">
-            <input id="cpCollectibleSearchRadius" type="number" placeholder="Zoekradius, bv. 30">
-            <input id="cpCollectibleRevealDistance" type="number" placeholder="Reveal distance, bv. 15">
+            <div>
+              <label for="cpCollectibleSearchRadius">Zoekradius</label>
+              <input id="cpCollectibleSearchRadius" type="number" placeholder="bv. 30">
+            </div>
+
+            <div>
+              <label for="cpCollectibleRevealDistance">Reveal distance</label>
+              <input id="cpCollectibleRevealDistance" type="number" placeholder="bv. 15">
+            </div>
           </div>
         </div>
 
         <div id="cpMurderSection" class="hidden">
-          <h3>Moordonderzoek</h3>
+          <h3>Onderzoek en bewijs</h3>
 
-          <input id="cpSuspectName" type="text" placeholder="Naam verdachte / betrokken persoon">
-          <textarea id="cpDialogText" placeholder="Fictieve dialoog of getuigenis"></textarea>
+          <label for="cpSuspectName">Naam verdachte / betrokken persoon</label>
+          <input id="cpSuspectName" type="text" placeholder="Bijvoorbeeld: Margaretha, de smid, getuige A">
+
+          <label for="cpDialogText">Dialoog / getuigenis</label>
+          <textarea id="cpDialogText" placeholder="Tekst van getuige, NPC of verdacht gesprek"></textarea>
 
           <div class="checkbox-grid">
             <label><input id="cpHasFingerprint" type="checkbox"> Voorwerp heeft afdruk</label>
             <label><input id="cpIsFakeClue" type="checkbox"> Dit is een vals spoor</label>
-            <label><input id="cpEvidenceIsCritical" type="checkbox"> Dit bewijs is cruciaal voor finale</label>
+            <label><input id="cpEvidenceIsCritical" type="checkbox"> Dit bewijs is cruciaal voor de finale</label>
           </div>
 
-          <input id="cpFingerprintLabel" type="text" placeholder="Naam afdruk / spoor, bv. Afdruk A">
+          <label for="cpFingerprintLabel">Naam afdruk / spoor</label>
+          <input id="cpFingerprintLabel" type="text" placeholder="Bijvoorbeeld: Afdruk A">
         </div>
 
         <div id="cpMoleSection" class="hidden">
-          <h3>De mol</h3>
+          <h3>Sabotage en geheime doelen</h3>
 
-          <textarea id="cpSabotageHint" placeholder="Beschrijving van mogelijke sabotage of geheime actie"></textarea>
+          <label for="cpSabotageHint">Hint voor sabotage of geheime actie</label>
+          <textarea id="cpSabotageHint" placeholder="Beschrijf welke sabotage hier mogelijk is of wat de mol ermee kan doen"></textarea>
 
           <div class="checkbox-grid">
             <label><input id="cpCanTriggerSabotage" type="checkbox"> Checkpoint kan sabotage triggeren</label>
             <label><input id="cpSecretObjective" type="checkbox"> Checkpoint bevat geheime opdracht</label>
           </div>
 
-          <input id="cpSecretObjectiveText" type="text" placeholder="Geheime opdracht / doel">
+          <label for="cpSecretObjectiveText">Geheime opdracht</label>
+          <input id="cpSecretObjectiveText" type="text" placeholder="Bijvoorbeeld: steel punten van een ander team">
         </div>
 
         <div id="cpHuntersSection" class="hidden">
-          <h3>Jagers</h3>
+          <h3>Jacht en rolwissel</h3>
 
           <div class="checkbox-grid">
             <label><input id="cpCanSwitchRoles" type="checkbox"> Dit checkpoint kan rollen wisselen</label>
             <label><input id="cpCanTriggerChase" type="checkbox"> Dit checkpoint kan jachtfase starten</label>
           </div>
 
-          <input id="cpRoleSwitchValue" type="number" placeholder="Waarde / drempel voor rolwissel">
-          <input id="cpChaseRadius" type="number" placeholder="Jachtradius, bv. 20">
+          <label for="cpRoleSwitchValue">Drempel of waarde voor rolwissel</label>
+          <input id="cpRoleSwitchValue" type="number" placeholder="Bijvoorbeeld aantal punten of fase">
+
+          <label for="cpChaseRadius">Jachtradius</label>
+          <input id="cpChaseRadius" type="number" placeholder="Bijvoorbeeld 20 meter">
         </div>
 
         <div class="button-grid">
@@ -292,12 +401,15 @@
 
       <div class="card">
         <h2>Checkpoints in deze stad</h2>
+        <p class="small-note">
+          Klik op een checkpoint om het terug in de editor te laden.
+        </p>
         <div id="checkpointList"></div>
       </div>
     </div>
   </div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script type="module" src="admin.js?v=20260328-admin-koppeling-1"></script>
+  <script type="module" src="admin.js?v=20260328-admin-smart-ui-1"></script>
 </body>
 </html>
