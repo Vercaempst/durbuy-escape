@@ -901,6 +901,11 @@ function closeQuestionModal() {
 }
 
 function showTeacherMessage(text) {
+  if (!byId("introModal")?.classList.contains("hidden")) {
+    pendingBroadcast = { text, at: Date.now() };
+    return;
+  }
+
   const el = byId("teacherMessageText");
   if (el) el.innerText = text || "";
   showModal("messageModal");
@@ -1502,6 +1507,7 @@ async function processIncomingCommands() {
     groupData.commandNextAt > lastProcessedCommandTimestamps.commandNextAt
   ) {
     lastProcessedCommandTimestamps.commandNextAt = groupData.commandNextAt;
+    pendingCollectibleCheckpointId = null;
     await advanceToNextCheckpoint();
   }
 
@@ -1529,7 +1535,7 @@ async function hardResetCurrentGroup() {
     finishTimeMs: null,
     effects: {},
     startedAt: now,
-    ignoreBroadcastsBefore: now
+    ignoreBroadcastsBefore: now + 1000
   });
 
   routeCompleted = false;
