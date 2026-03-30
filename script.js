@@ -22,6 +22,8 @@ let cityKey = null;
 let cityData = null;
 let checkpoints = [];
 let currentGameType = null;
+let currentTeacherCity = null;
+let cityControlReady = false;
 
 let map = null;
 let groupMarker = null;
@@ -166,8 +168,10 @@ function getTimerSettings() {
 
 function parseUrlParams() {
   const params = new URLSearchParams(window.location.search);
-  cityKey = params.get("city") || localStorage.getItem("activeCityKey") || "durbuy";
-  localStorage.setItem("activeCityKey", cityKey);
+  const urlCity = params.get("city");
+  const storedCity = localStorage.getItem("activeCityKey");
+
+  cityKey = urlCity || storedCity || null;
 }
 
 function getLocalGroupStorageKey() {
@@ -175,10 +179,18 @@ function getLocalGroupStorageKey() {
 }
 
 function restoreGroupIdForCity() {
+  if (!cityKey) return;
+
   const perCity = localStorage.getItem(getLocalGroupStorageKey());
   if (perCity) {
     groupId = perCity;
     localStorage.setItem("groupId", groupId);
+    return;
+  }
+
+  const generic = localStorage.getItem("groupId");
+  if (generic) {
+    groupId = generic;
   }
 }
 
@@ -825,11 +837,21 @@ async function createGroup() {
     return;
   }
 
+  // Als teacher een stad actief gezet heeft, gebruik die.
+  if (currentTeacherCity && !groupId) {
+    await reloadCityContext(currentTeacherCity);
+  }
+
+  if (!cityKey) {
+    byId("loginFeedback").innerText = "Er is nog geen actieve stad gekozen.";
+    return;
+  }
+
   const number = await getNextGroupNumber();
   const newRef = push(ref(db, "groups"));
 
   const initialGroup = {
-    cityKey,
+    cityKey: cityKey,
     groupName,
     groupMembers,
     groupNumber: number,
@@ -867,6 +889,14 @@ function listenToGroup() {
     if (!snapshot.exists()) return;
 
     groupData = snapshot.val() || {};
+
+    if (groupData.cityKey && groupData.cityKey !== cityKey) {
+      await reloadCityContext(groupData.cityKey);
+    }
+
+
+
+    
     answeredCheckpointIds = Array.isArray(groupData.answeredCheckpointIds) ? groupData.answeredCheckpointIds : [];
     pendingCollectibleCheckpointId = groupData.pendingCollectibleCheckpointId || null;
     routeCompleted = !!groupData.gatherMode || !!groupData.finished;
@@ -913,6 +943,67 @@ function maybeShowBroadcast(broadcast = null) {
 
   globalBroadcastDismissedAt = at;
   showTeacherMessage(broadcast.text);
+}
+
+async function reloadCityContext(newCityKey, options = {}) {
+  const { preserveMapView = false } = options;
+
+  if (!newCityKey) return;
+  if (cityKey === newCityKey && cityData && checkpoints.length) return;
+
+  cityKey = newCityKey;
+  localStorage.setItem("activeCityKey", cityKey);
+
+  await loadCityAndGameType();
+
+  if (!map) {
+    initMap();
+  } else if (!preserveMapView) {
+    const center = cityData?.center || [50.85, 4.35];
+    map.setView(center, 16);
+
+    if (gatherMarker) {
+      map.removeLayer(gatherMarker);
+      gatherMarker = null;
+    }
+
+    if (cityData?.gather?.coords) {
+      gatherMarker = L.marker(cityData.gather.coords)
+        .addTo(map)
+        .bindPopup(cityData.gather.name || "Verzamelpunt");
+    }
+  }
+
+  updateCheckpointVisuals();
+  updateStudentTopUI();
+  updateInventoryTexts();
+  updateRankingUI();
+  updateArrowToTarget();
+  applyTheme();
+}
+
+function listenToTeacherCurrentCity() {
+  onValue(ref(db, "control/currentCity"), async (snapshot) => {
+    currentTeacherCity = snapshot.val() || null;
+    cityControlReady = true;
+
+    // Als groep al bestaat en een cityKey heeft, dan is die leidend.
+    if (groupData?.cityKey) {
+      if (cityKey !== groupData.cityKey) {
+        await reloadCityContext(groupData.cityKey);
+      }
+      return;
+    }
+
+    // Als er al een groupId bestaat maar groupData nog niet geladen is,
+    // wacht dan tot de groep geladen is.
+    if (groupId && !groupData) return;
+
+    // Nog geen groep gestart? Volg dan de teacher-stad.
+    if (!groupId && currentTeacherCity) {
+      await reloadCityContext(currentTeacherCity);
+    }
+  });
 }
 
 /* =========================================================
@@ -1547,9 +1638,24 @@ async function bootstrap() {
 
   parseUrlParams();
   restoreGroupIdForCity();
-  await loadCityAndGameType();
-  applyTheme();
-  initMap();
+
+  // Eerst luisteren naar teacher city control
+  listenToTeacherCurrentCity();
+
+  // Als er al een URL of localStorage stad is, laad die voorlopig.
+  if (cityKey) {
+    await reloadCityContext(cityKey);
+  }
+
+  // Als er nog geen stad is, wacht even op control/currentCity
+  if (!cityKey && currentTeacherCity) {
+    await reloadCityContext(currentTeacherCity);
+  }
+
+  if (!cityKey) {
+    // fallback als er nog niets actief staat
+    await reloadCityContext("durbuy");
+  }
 
   listenToAllGroups();
   listenToBroadcasts();
