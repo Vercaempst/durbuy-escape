@@ -3,15 +3,15 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Begeleidersdashboard</title>
-  <link rel="stylesheet" href="style.css?v=20260327-teacher-top-ux-1">
+  <title>City Escape Teacher</title>
+  <link rel="stylesheet" href="style.css?v=20260330-teacher-ui-1">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 </head>
 <body>
   <div id="loginScreen" class="container">
-    <div class="card login-card">
-      <div class="brand-kicker">Questly</div>
-      <h1>Begeleidersdashboard</h1>
+    <div class="card">
+      <h1>Teacher dashboard</h1>
+      <h2>Login vereist</h2>
       <input type="email" id="email" placeholder="Email">
       <input type="password" id="password" placeholder="Wachtwoord">
       <button onclick="login()">Login</button>
@@ -19,70 +19,90 @@
   </div>
 
   <div id="appContent" style="display:none;">
-    <div class="container app-shell">
-      <div class="card glow-card">
-        <div class="player-topbar">
-          <div>
-            <div class="brand-kicker">Questly</div>
-            <h1>Begeleidersdashboard</h1>
-          </div>
-          <button onclick="logout()">Logout</button>
-        </div>
+    <div class="container">
+      <div class="card">
+        <h1>Teacher dashboard</h1>
         <p id="loginStatus"></p>
-      </div>
 
-      <div class="player-layout">
-        <div class="card glow-card">
-          <h2>Actieve stad</h2>
-          <select id="citySelector"></select>
-          <button id="setCityButton">Activeer stad</button>
-          <p id="currentCityInfo"></p>
-        </div>
-
-        <div class="card glow-card">
-          <h2>Algemene controle</h2>
-          <div class="button-grid">
-            <button id="sendGatherButton">Stuur iedereen naar verzamelpunt</button>
-            <button id="resumeGameButton">Hervat normaal spel</button>
-          </div>
-          <input id="broadcastMessageInput" type="text" placeholder="Typ een bericht voor alle groepen">
-          <button id="sendBroadcastButton">Stuur bericht naar alle groepen</button>
-          <button id="resetDatabaseButton">Reset database</button>
-          <p id="globalActionFeedback"></p>
-        </div>
-      </div>
-
-      <div class="card glow-card">
-        <h2>Zoek leerling of groep</h2>
-        <input id="searchInput" type="text" placeholder="Typ naam leerling of groepsnaam">
-        <div id="searchResult"></div>
-      </div>
-
-      <div class="card glow-card">
-        <h2>Live scorebord</h2>
-        <div id="rankingContainer"></div>
-      </div>
-
-      <div id="map" class="game-map" style="height: 430px;"></div>
-
-      <div class="card glow-card">
         <div class="button-grid">
-          <button id="showAllGroupsButton">Toon alle groepen</button>
-        </div>
-        <h2>Groepsdetail</h2>
-        <div id="groupDetailContainer">
-          <p>Klik op een groep op de kaart of in het overzicht om details te bekijken.</p>
+          <button onclick="logout()">Logout</button>
+          <button type="button" onclick="window.location.href='admin.html'">Open admin</button>
+          <button type="button" onclick="window.location.href='speltypes.html'">Open speltypes</button>
         </div>
       </div>
 
-      <div class="card glow-card">
-        <h2>Actieve groepen</h2>
-        <div id="groupsContainer"></div>
+      <div class="card">
+        <h2>Actieve stad</h2>
+
+        <label for="citySelector">Kies actieve stad</label>
+        <select id="citySelector"></select>
+
+        <div class="button-grid">
+          <button id="setCityButton" type="button">Maak deze stad actief</button>
+          <button id="showAllGroupsButton" type="button">Toon alle groepen</button>
+        </div>
+
+        <p id="currentCityInfo"></p>
+        <p id="currentGameTypeInfo"></p>
+      </div>
+
+      <div class="card">
+        <h2>Algemene teacher-acties</h2>
+
+        <div class="button-grid">
+          <button id="sendGatherButton" type="button">Stuur iedereen naar verzamelpunt</button>
+          <button id="resumeGameButton" type="button">Hervat normaal spel</button>
+        </div>
+
+        <label for="broadcastMessageInput">Bericht naar alle groepen</label>
+        <input id="broadcastMessageInput" type="text" placeholder="Typ een algemeen bericht">
+
+        <div class="button-grid">
+          <button id="sendBroadcastButton" type="button">Verzend bericht</button>
+          <button id="resetDatabaseButton" type="button">Reset volledige databank</button>
+        </div>
+
+        <p id="globalActionFeedback"></p>
+      </div>
+
+      <div id="smartActionsContainer"></div>
+
+      <div id="map"></div>
+
+      <div class="hud-grid">
+        <div class="card">
+          <h2>Groepen</h2>
+          <div id="groupsContainer">
+            <p>Geen groepen actief.</p>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>Ranking</h2>
+          <div id="rankingContainer">
+            <p>Nog geen scoregegevens beschikbaar.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="hud-grid">
+        <div class="card">
+          <h2>Zoek een groep</h2>
+          <input id="searchInput" type="text" placeholder="Zoek op groepsnaam of leden">
+          <div id="searchResult"></div>
+        </div>
+
+        <div class="card">
+          <h2>Groepsdetail</h2>
+          <div id="groupDetailContainer">
+            <p>Klik op een groep om de volledige route en detailinfo te zien.</p>
+          </div>
+        </div>
       </div>
     </div>
   </div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script type="module" src="teacher.js?v=20260327-teacher-top-ux-1"></script>
+  <script type="module" src="teacher.js?v=20260330-teacher-ui-1"></script>
 </body>
 </html>
