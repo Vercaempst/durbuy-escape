@@ -1,3 +1,4 @@
+import { cities as fallbackCities } from "./cities.js";
 import { firebaseConfig } from "./firebase-config.js";
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
@@ -23,20 +24,20 @@ let cityData = null;
 let checkpoints = [];
 let currentGameType = null;
 let currentTeacherCity = null;
-let cityControlReady = false;
 
 let map = null;
 let groupMarker = null;
 let checkpointMarker = null;
+let checkpointRadiusCircle = null;
 let gatherMarker = null;
 let collectibleMarker = null;
 let collectibleSearchCircle = null;
-let checkpointRadiusCircle = null;
 
 let watchId = null;
 let currentLat = null;
 let currentLng = null;
 let currentHeading = null;
+let lastPositionSyncAt = 0;
 
 let groupId = localStorage.getItem("groupId") || null;
 let groupData = null;
@@ -52,16 +53,22 @@ let questionOpen = false;
 let introShown = false;
 let routeCompleted = false;
 let globalBroadcastDismissedAt = 0;
+let gameStartTimestamp = null;
+
+let unsubscribeGroupListener = null;
+let unsubscribeAllGroupsListener = null;
+let unsubscribeBroadcastListener = null;
+let unsubscribeTeacherCityListener = null;
+
 let lastProcessedCommandTimestamps = {
   commandMessageAt: 0,
   commandPointsAt: 0,
   commandResetAt: 0,
   commandNextAt: 0
 };
-let gameStartTimestamp = null;
 
 /* =========================================================
-   DOM HELPERS
+   HELPERS
 ========================================================= */
 function byId(id) {
   return document.getElementById(id);
@@ -69,6 +76,10 @@ function byId(id) {
 
 function qs(selector) {
   return document.querySelector(selector);
+}
+
+function nowMs() {
+  return Date.now();
 }
 
 function setBodyModalState() {
@@ -96,9 +107,6 @@ function hideModal(id) {
   setBodyModalState();
 }
 
-/* =========================================================
-   DEFAULTS / HELPERS
-========================================================= */
 function defaultModules() {
   return {
     navigation: true,
@@ -148,7 +156,12 @@ function hasModule(name) {
 }
 
 function shouldUseInventoryUI() {
-  return hasModule("inventory") || hasModule("evidenceBook") || hasModule("collectibles") || hasModule("usableItems");
+  return (
+    hasModule("inventory") ||
+    hasModule("evidenceBook") ||
+    hasModule("collectibles") ||
+    hasModule("usableItems")
+  );
 }
 
 function getInventoryLabel() {
@@ -170,7 +183,6 @@ function parseUrlParams() {
   const params = new URLSearchParams(window.location.search);
   const urlCity = params.get("city");
   const storedCity = localStorage.getItem("activeCityKey");
-
   cityKey = urlCity || storedCity || null;
 }
 
@@ -213,10 +225,6 @@ function formatDuration(ms) {
   return `${minutes}m ${String(seconds).padStart(2, "0")}s`;
 }
 
-function nowMs() {
-  return Date.now();
-}
-
 function distanceMeters(a, b) {
   const R = 6371000;
   const lat1 = a[0] * Math.PI / 180;
@@ -245,6 +253,81 @@ function getHeadingBetweenPoints(from, to) {
   return (bearing + 360) % 360;
 }
 
+function normalizeGather(rawGather, fallbackCenter = [50.85, 4.35]) {
+  if (Array.isArray(rawGather)) {
+    return {
+      name: "Verzamelpunt",
+      coords: rawGather,
+      radius: 40
+    };
+  }
+
+  if (rawGather && Array.isArray(rawGather.coords)) {
+    return {
+      name: rawGather.name || "Verzamelpunt",
+      coords: rawGather.coords,
+      radius: Number(rawGather.radius || 40)
+    };
+  }
+
+  return {
+    name: "Verzamelpunt",
+    coords: fallbackCenter,
+    radius: 40
+  };
+}
+
+function normalizeCity(cityKeyToUse, rawFirebaseCity = null) {
+  const fallback = fallbackCities?.[cityKeyToUse] || null;
+  const source = rawFirebaseCity || fallback || {};
+
+  const center = Array.isArray(source.center)
+    ? source.center
+    : Array.isArray(fallback?.center)
+      ? fallback.center
+      : [50.85, 4.35];
+
+  return {
+    key: cityKeyToUse,
+    name: source.name || fallback?.name || cityKeyToUse || "Onbekende stad",
+    center,
+    gather: normalizeGather(source.gather ?? fallback?.gather, center),
+    themeId: source.themeId || fallback?.themeId || "",
+    gameTypeId: source.gameTypeId || fallback?.gameTypeId || ""
+  };
+}
+
+function normalizeCheckpoint(cp, index) {
+  return {
+    ...cp,
+    id: cp?.id || `cp_${index}`,
+    name: cp?.name || `Checkpoint ${index + 1}`,
+    coords: Array.isArray(cp?.coords) ? cp.coords : null,
+    radius: Number(cp?.radius || 20),
+    taskType: cp?.taskType || "text",
+    question: cp?.question || "",
+    answers: Array.isArray(cp?.answers) ? cp.answers : [],
+    pointsCorrect: Number(cp?.pointsCorrect || 10),
+    pointsAfterMaxTries: Number(cp?.pointsAfterMaxTries || 0),
+    maxTries: Number(cp?.maxTries || 3),
+    options: Array.isArray(cp?.options) ? cp.options : [],
+    correctOption: Number.isFinite(Number(cp?.correctOption)) ? Number(cp.correctOption) : 0,
+    leftItems: Array.isArray(cp?.leftItems) ? cp.leftItems : [],
+    rightItems: Array.isArray(cp?.rightItems) ? cp.rightItems : [],
+    correctPairs: cp?.correctPairs || {},
+    story: cp?.story || "",
+    video: cp?.video || "",
+    audio: cp?.audio || "",
+    image: cp?.image || cp?.imageUrl || "",
+    gridSize: Number(cp?.gridSize || 3),
+    collectible: cp?.collectible ? buildNormalizedItem(cp.collectible) : null,
+    collectibleCoords: Array.isArray(cp?.collectibleCoords) ? cp.collectibleCoords : null,
+    collectibleSearchRadius: Number(cp?.collectibleSearchRadius || 0),
+    collectibleRevealDistance: Number(cp?.collectibleRevealDistance || 0),
+    collectibleUnlockMode: cp?.collectibleUnlockMode || ""
+  };
+}
+
 function getCurrentCheckpointIndex() {
   if (!groupData) return 0;
   return Number(groupData.routeIndex || 0);
@@ -257,10 +340,6 @@ function getCurrentCheckpoint() {
 function getCurrentCheckpointId() {
   const cp = getCurrentCheckpoint();
   return cp?.id || `cp_${getCurrentCheckpointIndex()}`;
-}
-
-function getCheckpointEffectiveId(cp, index) {
-  return cp?.id || `cp_${index}`;
 }
 
 function isCurrentCheckpointAnswered() {
@@ -299,44 +378,85 @@ function checkpointUnlockChoiceEnabled(cp) {
 
 function shouldUseSearchChoice(cp) {
   if (!cp?.collectible) return false;
-  const setting = cp.collectibleUnlockMode || currentGameType?.collectibles?.unlockCondition || "afterCorrect";
+  const setting =
+    cp.collectibleUnlockMode ||
+    currentGameType?.collectibles?.unlockCondition ||
+    "afterCorrect";
+
   return (
     setting === "searchZoneAfterCorrect" ||
     setting === "searchZoneAfterCorrectOrMaxTries"
   );
 }
 
+function shouldGrantCollectible(cp, answeredCorrectly, reachedMaxTries) {
+  if (!cp?.collectible) return false;
+
+  const setting =
+    cp.collectibleUnlockMode ||
+    currentGameType?.collectibles?.unlockCondition ||
+    "afterCorrect";
+
+  if (setting === "none") return false;
+  if (setting === "afterCorrect") return answeredCorrectly;
+  if (setting === "afterMaxTries") return reachedMaxTries;
+  if (setting === "afterCorrectOrMaxTries") return answeredCorrectly || reachedMaxTries;
+  if (setting === "searchZoneAfterCorrect") return answeredCorrectly;
+  if (setting === "searchZoneAfterCorrectOrMaxTries") return answeredCorrectly || reachedMaxTries;
+
+  return answeredCorrectly;
+}
+
+function getCollectibleCoords(cp) {
+  if (Array.isArray(cp?.collectibleCoords)) return cp.collectibleCoords;
+  return cp?.coords || null;
+}
+
+function getSearchRadius(cp) {
+  return Number(
+    cp?.collectibleSearchRadius ||
+    cp?.collectible?.searchRadius ||
+    currentGameType?.collectibles?.searchRadius ||
+    30
+  );
+}
+
+function getRevealDistance(cp) {
+  return Number(
+    cp?.collectibleRevealDistance ||
+    cp?.collectible?.revealDistance ||
+    currentGameType?.collectibles?.revealDistance ||
+    15
+  );
+}
+
 /* =========================================================
-   CITY / GAMETYPE LOAD
+   LOAD CITY / GAMETYPE / THEME
 ========================================================= */
 async function loadCityAndGameType() {
-  const citySnap = await get(ref(db, `cities/${cityKey}`));
-  const cityFallback = null;
+  let firebaseCity = null;
 
-  if (citySnap.exists()) {
-    cityData = citySnap.val();
-  } else {
-    cityData = cityFallback || {
-      name: cityKey,
-      center: [50.85, 4.35],
-      gather: {
-        name: "Verzamelpunt",
-        coords: [50.85, 4.35],
-        radius: 40
-      },
-      gameTypeId: ""
-    };
+  if (cityKey) {
+    const citySnap = await get(ref(db, `cities/${cityKey}`));
+    if (citySnap.exists()) {
+      firebaseCity = citySnap.val();
+    }
   }
 
+  cityData = normalizeCity(cityKey, firebaseCity);
+
+  let loadedCheckpoints = [];
   const checkpointsSnap = await get(ref(db, `cityData/${cityKey}/checkpoints`));
-  checkpoints = checkpointsSnap.exists() ? (checkpointsSnap.val() || []) : [];
 
-  if (!Array.isArray(checkpoints)) checkpoints = [];
+  if (checkpointsSnap.exists() && Array.isArray(checkpointsSnap.val())) {
+    loadedCheckpoints = checkpointsSnap.val();
+  } else if (Array.isArray(fallbackCities?.[cityKey]?.defaultCheckpoints)) {
+    loadedCheckpoints = fallbackCities[cityKey].defaultCheckpoints;
+  }
 
-  checkpoints = checkpoints.map((cp, index) => ({
-    ...cp,
-    id: getCheckpointEffectiveId(cp, index)
-  }));
+  checkpoints = loadedCheckpoints
+    .map((cp, index) => normalizeCheckpoint(cp, index))
+    .filter((cp) => Array.isArray(cp.coords));
 
   if (cityData?.gameTypeId) {
     const gameTypeSnap = await get(ref(db, `speltypes/${cityData.gameTypeId}`));
@@ -344,6 +464,59 @@ async function loadCityAndGameType() {
   } else {
     currentGameType = null;
   }
+}
+
+async function applyTheme() {
+  document.title = cityData?.name ? `${cityData.name} - City Escape` : "City Escape";
+  if (byId("appTitle")) {
+    byId("appTitle").innerText = document.title;
+  }
+
+  if (!cityData?.themeId) {
+    resetThemeToDefaults();
+    return;
+  }
+
+  const themeSnap = await get(ref(db, `themes/${cityData.themeId}`));
+  if (!themeSnap.exists()) {
+    resetThemeToDefaults();
+    return;
+  }
+
+  const t = themeSnap.val() || {};
+
+  document.documentElement.style.setProperty("--theme-text-color", t.textColor || "#ffffff");
+  document.documentElement.style.setProperty("--theme-card-color", t.cardColor || "rgba(22, 18, 34, 0.88)");
+  document.documentElement.style.setProperty("--theme-primary-color", t.primaryColor || "#8b5cf6");
+  document.documentElement.style.setProperty("--theme-secondary-color", t.secondaryColor || "#d946ef");
+  document.documentElement.style.setProperty("--theme-button-color", t.buttonColor || "#7c3aed");
+  document.documentElement.style.setProperty("--theme-button-text-color", t.buttonTextColor || "#ffffff");
+  document.documentElement.style.setProperty("--theme-border-radius", t.borderRadius || "18px");
+  document.documentElement.style.setProperty("--theme-box-shadow", t.boxShadow || "0 10px 30px rgba(0, 0, 0, 0.35)");
+
+  document.body.style.color = t.textColor || "#ffffff";
+  document.body.style.fontFamily = t.fontFamily || '"Segoe UI", Arial, sans-serif';
+
+  if (t.backgroundType === "image" && t.backgroundImage) {
+    document.body.style.background = `center / cover no-repeat url("${t.backgroundImage}") fixed`;
+  } else {
+    document.body.style.background = `radial-gradient(circle at top, ${t.backgroundColor || "#1b1328"}, #0d0a14)`;
+  }
+}
+
+function resetThemeToDefaults() {
+  document.documentElement.style.setProperty("--theme-text-color", "#ffffff");
+  document.documentElement.style.setProperty("--theme-card-color", "rgba(22, 18, 34, 0.88)");
+  document.documentElement.style.setProperty("--theme-primary-color", "#8b5cf6");
+  document.documentElement.style.setProperty("--theme-secondary-color", "#d946ef");
+  document.documentElement.style.setProperty("--theme-button-color", "#7c3aed");
+  document.documentElement.style.setProperty("--theme-button-text-color", "#ffffff");
+  document.documentElement.style.setProperty("--theme-border-radius", "18px");
+  document.documentElement.style.setProperty("--theme-box-shadow", "0 10px 30px rgba(0, 0, 0, 0.35)");
+
+  document.body.style.color = "#ffffff";
+  document.body.style.fontFamily = '"Segoe UI", Arial, sans-serif';
+  document.body.style.background = "radial-gradient(circle at top, #1b1328, #0d0a14)";
 }
 
 /* =========================================================
@@ -358,17 +531,25 @@ function initMap() {
     attribution: "OpenStreetMap"
   }).addTo(map);
 
+  refreshGatherMarker();
+}
+
+function refreshGatherMarker() {
+  if (!map) return;
+
+  if (gatherMarker) {
+    map.removeLayer(gatherMarker);
+    gatherMarker = null;
+  }
+
   if (cityData?.gather?.coords) {
-    gatherMarker = L.marker(cityData.gather.coords).addTo(map).bindPopup(cityData.gather.name || "Verzamelpunt");
+    gatherMarker = L.marker(cityData.gather.coords)
+      .addTo(map)
+      .bindPopup(cityData.gather.name || "Verzamelpunt");
   }
 }
 
-function getCollectibleCoords(cp) {
-  if (Array.isArray(cp.collectibleCoords)) return cp.collectibleCoords;
-  return cp.coords;
-}
-
-function updateCheckpointVisuals() {
+function clearCheckpointVisuals() {
   if (!map) return;
 
   if (checkpointMarker) map.removeLayer(checkpointMarker);
@@ -380,12 +561,21 @@ function updateCheckpointVisuals() {
   checkpointRadiusCircle = null;
   collectibleMarker = null;
   collectibleSearchCircle = null;
+}
+
+function updateCheckpointVisuals() {
+  if (!map) return;
+
+  clearCheckpointVisuals();
 
   if (routeCompleted) {
     if (cityData?.gather?.coords) {
-      checkpointMarker = L.marker(cityData.gather.coords).addTo(map).bindPopup(cityData.gather.name || "Verzamelpunt");
+      checkpointMarker = L.marker(cityData.gather.coords)
+        .addTo(map)
+        .bindPopup(cityData.gather.name || "Verzamelpunt");
+
       checkpointRadiusCircle = L.circle(cityData.gather.coords, {
-        radius: Number(cityData?.gather?.radius || 40),
+        radius: Number(cityData.gather.radius || 40),
         color: "#22c55e",
         fillColor: "#22c55e",
         fillOpacity: 0.08
@@ -397,7 +587,10 @@ function updateCheckpointVisuals() {
   const cp = getCurrentCheckpoint();
   if (!cp || !Array.isArray(cp.coords)) return;
 
-  checkpointMarker = L.marker(cp.coords).addTo(map).bindPopup(cp.name || "Checkpoint");
+  checkpointMarker = L.marker(cp.coords)
+    .addTo(map)
+    .bindPopup(cp.name || "Checkpoint");
+
   checkpointRadiusCircle = L.circle(cp.coords, {
     radius: Number(cp.radius || 20),
     color: "#3b82f6",
@@ -406,23 +599,34 @@ function updateCheckpointVisuals() {
   }).addTo(map);
 
   const isPendingSearch = pendingCollectibleCheckpointId === cp.id;
-  if (isPendingSearch && cp.collectible) {
-    const searchCoords = getCollectibleCoords(cp);
-    const searchRadius =
-      Number(cp.collectibleSearchRadius || cp.collectible?.searchRadius || currentGameType?.collectibles?.searchRadius || 30);
-    const revealDistance =
-      Number(cp.collectibleRevealDistance || cp.collectible?.revealDistance || currentGameType?.collectibles?.revealDistance || 15);
+  if (!isPendingSearch || !cp.collectible) return;
 
-    collectibleSearchCircle = L.circle(searchCoords, {
-      radius: searchRadius,
-      className: "collectible-search-zone"
-    }).addTo(map);
+  const searchCoords = getCollectibleCoords(cp);
+  if (!Array.isArray(searchCoords)) return;
 
-    if (currentLat != null && currentLng != null) {
-      const dist = distanceMeters([currentLat, currentLng], searchCoords);
-      if (dist <= revealDistance) {
-        collectibleMarker = L.marker(searchCoords).addTo(map).bindPopup(cp.collectible.name || "Collectible");
-      }
+  collectibleSearchCircle = L.circle(searchCoords, {
+    radius: getSearchRadius(cp),
+    className: "collectible-search-zone"
+  }).addTo(map);
+
+  const visibilityMode =
+    cp.collectible?.mapVisibility ||
+    currentGameType?.collectibles?.mapVisibility ||
+    "blurZone";
+
+  if (visibilityMode === "alwaysVisible") {
+    collectibleMarker = L.marker(searchCoords)
+      .addTo(map)
+      .bindPopup(cp.collectible.name || "Collectible");
+    return;
+  }
+
+  if (currentLat != null && currentLng != null) {
+    const dist = distanceMeters([currentLat, currentLng], searchCoords);
+    if (dist <= getRevealDistance(cp)) {
+      collectibleMarker = L.marker(searchCoords)
+        .addTo(map)
+        .bindPopup(cp.collectible.name || "Collectible");
     }
   }
 }
@@ -435,40 +639,66 @@ function updateGroupMarker() {
       radius: 9,
       color: "#2563eb",
       fillColor: "#60a5fa",
-      fillOpacity: 0.9
+      fillOpacity: 0.92
     }).addTo(map);
   } else {
     groupMarker.setLatLng([currentLat, currentLng]);
   }
 }
 
+/* =========================================================
+   EFFECTS / UI EFFECTS
+========================================================= */
+function getActiveEffects() {
+  const effectsObj = groupData?.effects || {};
+  const all = Object.values(effectsObj || {});
+  const now = nowMs();
+  return all.filter((e) => !e?.endsAt || e.endsAt > now);
+}
+
+function hasActiveEffect(type) {
+  return getActiveEffects().some((e) => e?.type === type);
+}
+
 function updateMapVisibilityFromEffects() {
   const mapEl = byId("map");
   if (!mapEl) return;
 
-  const activeEffects = getActiveEffects();
   mapEl.style.filter = "";
   mapEl.style.opacity = "";
 
-  if (activeEffects.some(e => e.type === "map_blur")) {
+  if (hasActiveEffect("map_blur")) {
     mapEl.style.filter = "blur(7px)";
   }
 
-  if (activeEffects.some(e => e.type === "no_map")) {
+  if (hasActiveEffect("no_map")) {
     mapEl.style.opacity = "0.15";
+  }
+}
+
+async function cleanupExpiredEffects() {
+  if (!groupId || !groupData?.effects) return;
+
+  const updates = {};
+  const now = nowMs();
+
+  Object.entries(groupData.effects).forEach(([effectId, effect]) => {
+    if (effect?.endsAt && effect.endsAt <= now) {
+      updates[`effects/${effectId}`] = null;
+    }
+  });
+
+  if (Object.keys(updates).length) {
+    await update(ref(db, `groups/${groupId}`), updates);
   }
 }
 
 /* =========================================================
    UI
 ========================================================= */
-function applyTheme() {
-  document.title = cityData?.name ? `${cityData.name} - City Escape` : "City Escape";
-  byId("appTitle") && (byId("appTitle").innerText = document.title);
-}
-
 function updateInventoryTexts() {
   const label = getInventoryLabel();
+
   const btn = byId("openEvidenceButton");
   if (btn) {
     btn.innerText = `📖 Open ${label.toLowerCase()}`;
@@ -490,46 +720,6 @@ function updateInventoryTexts() {
   }
 }
 
-function updateStudentTopUI() {
-  if (!groupData) return;
-
-  byId("teamDisplay").innerText = `Groep ${groupData.groupNumber || "?"}: ${groupData.groupName || ""}`;
-
-  const cp = routeCompleted ? null : getCurrentCheckpoint();
-  byId("missionTargetTitle").innerText = routeCompleted
-    ? (cityData?.gather?.name || "Verzamelpunt")
-    : (cp?.name || "Checkpoint");
-
-  if (routeCompleted) {
-    const gatherCoords = cityData?.gather?.coords;
-    const dist = gatherCoords && currentLat != null && currentLng != null
-      ? distanceMeters([currentLat, currentLng], gatherCoords)
-      : null;
-    byId("status").innerText = `Nog ${formatMeters(dist)} tot verzamelpunt.`;
-  } else {
-    const target = cp?.coords;
-    const dist = target && currentLat != null && currentLng != null
-      ? distanceMeters([currentLat, currentLng], target)
-      : null;
-    byId("status").innerText = `Nog ${formatMeters(dist)} tot doel.`;
-  }
-
-  byId("scoreText").innerText = String(groupData.score || 0);
-
-  const progressCurrent = Math.min(getCurrentCheckpointIndex() + (routeCompleted ? 1 : 0), checkpoints.length);
-  byId("progressText").innerText = checkpoints.length
-    ? `Checkpoint ${Math.min(getCurrentCheckpointIndex() + 1, checkpoints.length)} / ${checkpoints.length}`
-    : "Checkpoint 0 / 0";
-
-  const progressPercent = checkpoints.length
-    ? Math.round((answeredCheckpointIds.length / checkpoints.length) * 100)
-    : 0;
-  byId("progressBarFill").style.width = `${progressPercent}%`;
-
-  updateGPSStatus();
-  updateInventoryTexts();
-}
-
 function updateGPSStatus() {
   const dot = byId("gpsStatusDot");
   const text = byId("gpsStatusText");
@@ -545,12 +735,58 @@ function updateGPSStatus() {
   text.innerText = "GPS-status: actief";
 }
 
+function updateStudentTopUI() {
+  if (!groupData) return;
+
+  byId("teamDisplay").innerText =
+    `Groep ${groupData.groupNumber || "?"}: ${groupData.groupName || ""}`;
+
+  const cp = routeCompleted ? null : getCurrentCheckpoint();
+  byId("missionTargetTitle").innerText = routeCompleted
+    ? (cityData?.gather?.name || "Verzamelpunt")
+    : (cp?.name || "Checkpoint");
+
+  if (routeCompleted) {
+    const gatherCoords = cityData?.gather?.coords;
+    const dist =
+      gatherCoords && currentLat != null && currentLng != null
+        ? distanceMeters([currentLat, currentLng], gatherCoords)
+        : null;
+
+    byId("status").innerText = `Nog ${formatMeters(dist)} tot verzamelpunt.`;
+  } else {
+    const target = cp?.coords;
+    const dist =
+      target && currentLat != null && currentLng != null
+        ? distanceMeters([currentLat, currentLng], target)
+        : null;
+
+    byId("status").innerText = `Nog ${formatMeters(dist)} tot doel.`;
+  }
+
+  byId("scoreText").innerText = String(groupData.score || 0);
+
+  byId("progressText").innerText = checkpoints.length
+    ? `Checkpoint ${Math.min(getCurrentCheckpointIndex() + 1, checkpoints.length)} / ${checkpoints.length}`
+    : "Checkpoint 0 / 0";
+
+  const progressPercent = checkpoints.length
+    ? Math.round((answeredCheckpointIds.length / checkpoints.length) * 100)
+    : 0;
+
+  if (byId("progressBarFill")) {
+    byId("progressBarFill").style.width = `${progressPercent}%`;
+  }
+
+  updateGPSStatus();
+  updateInventoryTexts();
+}
+
 function updateArrowToTarget() {
   const arrow = byId("arrow");
   if (!arrow) return;
 
-  const activeEffects = getActiveEffects();
-  if (activeEffects.some(e => e.type === "compass_off")) {
+  if (hasActiveEffect("compass_off")) {
     arrow.style.display = "none";
     return;
   }
@@ -583,7 +819,7 @@ function updateRankingUI() {
     return;
   }
 
-  const activeGroups = Object.entries(groupsCache)
+  const activeGroups = Object.entries(groupsCache || {})
     .map(([id, g]) => ({ id, ...g }))
     .filter((g) => g.cityKey === cityKey)
     .sort((a, b) => (b.score || 0) - (a.score || 0));
@@ -619,16 +855,16 @@ function closeMessageModal() {
 function showIntroIfNeeded() {
   if (introShown) return;
   if (!groupData) return;
+  if (!getModules().story) return;
 
-  const modules = getModules();
-  if (!modules.story) return;
+  if (byId("introTitle")) {
+    byId("introTitle").innerText = cityData?.name
+      ? `Welkom in ${cityData.name}`
+      : "Welkom";
+  }
 
-  const title = byId("introTitle");
-  const text = byId("introText");
-
-  if (title) title.innerText = cityData?.name ? `Welkom in ${cityData.name}` : "Welkom";
-  if (text) {
-    text.innerText =
+  if (byId("introText")) {
+    byId("introText").innerText =
       currentGameType?.description ||
       "Jullie gaan op pad langs checkpoints. Los vragen op, verzamel items en bereik het verzamelpunt.";
   }
@@ -638,8 +874,9 @@ function showIntroIfNeeded() {
 }
 
 function showTeacherMessage(text) {
-  const el = byId("teacherMessageText");
-  if (el) el.innerText = text || "";
+  if (byId("teacherMessageText")) {
+    byId("teacherMessageText").innerText = text || "";
+  }
   showModal("messageModal");
 }
 
@@ -655,6 +892,9 @@ function showErrorShake() {
   setTimeout(() => modalContent.classList.remove("error-shake"), 500);
 }
 
+/* =========================================================
+   QUESTION RENDERING
+========================================================= */
 function renderMultipleChoiceOptions(cp) {
   const wrap = byId("taskMultipleChoiceWrapper");
   const container = byId("multipleChoiceOptions");
@@ -669,10 +909,12 @@ function renderMultipleChoiceOptions(cp) {
     btn.innerText = optionText;
     btn.style.marginBottom = "10px";
     btn.style.opacity = currentSelectedMultipleChoice === index ? "1" : "0.85";
+
     btn.addEventListener("click", () => {
       currentSelectedMultipleChoice = index;
       renderMultipleChoiceOptions(cp);
     });
+
     container.appendChild(btn);
   });
 }
@@ -683,8 +925,14 @@ function renderMatchingTask(cp) {
   if (!wrap || !container) return;
 
   wrap.classList.remove("hidden-task");
+
+  const pairs = Object.entries(cp.correctPairs || {})
+    .map(([left, right]) => `<div>${left} = ${right}</div>`)
+    .join("");
+
   container.innerHTML = `
-    <p class="small-note">Voor matching gebruiken we hier eenvoudige controle via tekstinvoer. Vul de koppels in zoals in de admin ingevoerd.</p>
+    <p class="small-note">Typ hieronder de koppels in zoals links=rechts, één per lijn.</p>
+    ${pairs ? `<details><summary>Controle voorbeeld</summary>${pairs}</details>` : ""}
   `;
 }
 
@@ -694,7 +942,15 @@ function renderImagePuzzleTask(cp) {
   if (!wrap || !grid) return;
 
   wrap.classList.remove("hidden-task");
-  grid.innerHTML = `<p>Afbeeldingspuzzel is actief. Gebruik hiervoor best een eenvoudige inhoudelijke controle of laat dit checkpoint voorlopig als visuele opdracht dienen.</p>`;
+
+  if (cp.image) {
+    grid.innerHTML = `
+      <p class="small-note">Bekijk de afbeelding en herken de plek in het echt.</p>
+      <img src="${cp.image}" alt="" style="max-width:100%; border-radius:14px; margin-bottom:12px;">
+    `;
+  } else {
+    grid.innerHTML = `<p>Afbeeldingspuzzel actief.</p>`;
+  }
 }
 
 function renderPhotoTask() {
@@ -703,6 +959,7 @@ function renderPhotoTask() {
 }
 
 function resetQuestionTaskWrappers() {
+  byId("taskTextWrapper")?.classList.remove("hidden-task");
   byId("taskMultipleChoiceWrapper")?.classList.add("hidden-task");
   byId("taskMatchingWrapper")?.classList.add("hidden-task");
   byId("taskImagePuzzleWrapper")?.classList.add("hidden-task");
@@ -717,10 +974,10 @@ function openQuestionForCheckpoint(cp) {
   currentTries = 0;
   currentSelectedMultipleChoice = null;
 
-  byId("modalTitle").innerText = cp.name || "Checkpoint";
-  byId("modalQuestion").innerText = cp.question || "Vraag";
-  byId("answerFeedback").innerText = "";
-  byId("triesFeedback").innerText = "";
+  if (byId("modalTitle")) byId("modalTitle").innerText = cp.name || "Checkpoint";
+  if (byId("modalQuestion")) byId("modalQuestion").innerText = cp.question || "Vraag";
+  if (byId("answerFeedback")) byId("answerFeedback").innerText = "";
+  if (byId("triesFeedback")) byId("triesFeedback").innerText = "";
 
   resetQuestionTaskWrappers();
 
@@ -730,17 +987,22 @@ function openQuestionForCheckpoint(cp) {
       storyEl.innerText = cp.story;
       storyEl.classList.remove("hidden");
     } else {
-      storyEl.classList.add("hidden");
       storyEl.innerText = "";
+      storyEl.classList.add("hidden");
     }
   }
 
   const input = byId("modalAnswerInput");
   if (input) {
     input.value = "";
-    input.style.display = (cp.taskType === "text" || cp.taskType === "riddle" || cp.taskType === "matching" || cp.taskType === "photo")
-      ? ""
-      : "none";
+
+    const showTextInput =
+      cp.taskType === "text" ||
+      cp.taskType === "riddle" ||
+      cp.taskType === "matching" ||
+      cp.taskType === "imagePuzzle";
+
+    input.style.display = showTextInput ? "" : "none";
   }
 
   const video = byId("modalVideo");
@@ -767,7 +1029,7 @@ function openQuestionForCheckpoint(cp) {
 
   const image = byId("modalImage");
   if (image) {
-    if (cp.image) {
+    if (cp.image && cp.taskType !== "imagePuzzle") {
       image.src = cp.image;
       image.classList.remove("hidden");
     } else {
@@ -776,10 +1038,23 @@ function openQuestionForCheckpoint(cp) {
     }
   }
 
-  if (cp.taskType === "multipleChoice") renderMultipleChoiceOptions(cp);
-  if (cp.taskType === "matching") renderMatchingTask(cp);
-  if (cp.taskType === "imagePuzzle") renderImagePuzzleTask(cp);
-  if (cp.taskType === "photo") renderPhotoTask();
+  if (cp.taskType === "multipleChoice") {
+    byId("taskTextWrapper")?.classList.add("hidden-task");
+    renderMultipleChoiceOptions(cp);
+  }
+
+  if (cp.taskType === "matching") {
+    renderMatchingTask(cp);
+  }
+
+  if (cp.taskType === "imagePuzzle") {
+    renderImagePuzzleTask(cp);
+  }
+
+  if (cp.taskType === "photo") {
+    byId("taskTextWrapper")?.classList.add("hidden-task");
+    renderPhotoTask();
+  }
 
   showModal("questionModal");
 }
@@ -789,6 +1064,11 @@ function getUserAnswerForCheckpoint(cp) {
 
   if (cp.taskType === "multipleChoice") {
     return currentSelectedMultipleChoice;
+  }
+
+  if (cp.taskType === "photo") {
+    const file = byId("photoInput")?.files?.[0] || null;
+    return file ? "photo_uploaded" : "";
   }
 
   return (byId("modalAnswerInput")?.value || "").trim();
@@ -812,15 +1092,21 @@ function validateCheckpointAnswer(cp, userAnswer) {
   }
 
   if (cp.taskType === "photo") {
-    return true;
+    return String(userAnswer || "").trim() === "photo_uploaded";
   }
 
+  const answers = Array.isArray(cp.answers) ? cp.answers : [];
   const normalized = String(userAnswer || "").trim().toLowerCase();
-  return (cp.answers || []).some((ans) => String(ans).trim().toLowerCase() === normalized);
+
+  if (!answers.length) {
+    return normalized.length > 0;
+  }
+
+  return answers.some((ans) => String(ans).trim().toLowerCase() === normalized);
 }
 
 /* =========================================================
-   GROUP CREATION / SYNC
+   GROUP CREATION / LISTENERS
 ========================================================= */
 async function getNextGroupNumber() {
   const counterRef = ref(db, `meta/groupCounters/${cityKey}`);
@@ -828,37 +1114,54 @@ async function getNextGroupNumber() {
   return result.snapshot.val();
 }
 
+function getInitialRouteIndex(groupNumber) {
+  const flow = getGameTypeRules().checkpointFlow || "rotatingRoute";
+
+  if (!checkpoints.length) return 0;
+  if (flow !== "rotatingRoute") return 0;
+
+  const base = Math.max(0, Number(groupNumber || 1) - 1);
+  return base % checkpoints.length;
+}
+
 async function createGroup() {
   const groupName = (byId("groupName")?.value || "").trim();
   const groupMembers = (byId("groupMembers")?.value || "").trim();
 
   if (!groupName) {
-    byId("loginFeedback").innerText = "Vul eerst een groepsnaam in.";
+    if (byId("loginFeedback")) {
+      byId("loginFeedback").innerText = "Vul eerst een groepsnaam in.";
+    }
     return;
   }
 
-  // Als teacher een stad actief gezet heeft, gebruik die.
   if (currentTeacherCity && !groupId) {
     await reloadCityContext(currentTeacherCity);
   }
 
   if (!cityKey) {
-    byId("loginFeedback").innerText = "Er is nog geen actieve stad gekozen.";
+    if (byId("loginFeedback")) {
+      byId("loginFeedback").innerText = "Er is nog geen actieve stad gekozen.";
+    }
     return;
   }
 
   const number = await getNextGroupNumber();
   const newRef = push(ref(db, "groups"));
+  const initialRouteIndex = getInitialRouteIndex(number);
 
   const initialGroup = {
-    cityKey: cityKey,
+    cityKey,
     groupName,
     groupMembers,
     groupNumber: number,
     score: 0,
-    routeIndex: 0,
-    checkpoint: checkpoints[0]?.name || "",
-    nextCheckpoint: checkpoints[1]?.name || "",
+    routeIndex: initialRouteIndex,
+    checkpoint: checkpoints[initialRouteIndex]?.name || "",
+    nextCheckpoint:
+      checkpoints[initialRouteIndex + 1]?.name ||
+      cityData?.gather?.name ||
+      "Verzamelpunt",
     evidence: [],
     evidenceCount: 0,
     answeredCheckpointIds: [],
@@ -885,7 +1188,12 @@ async function createGroup() {
 function listenToGroup() {
   if (!groupId) return;
 
-  onValue(ref(db, `groups/${groupId}`), async (snapshot) => {
+  if (unsubscribeGroupListener) {
+    unsubscribeGroupListener();
+    unsubscribeGroupListener = null;
+  }
+
+  unsubscribeGroupListener = onValue(ref(db, `groups/${groupId}`), async (snapshot) => {
     if (!snapshot.exists()) return;
 
     groupData = snapshot.val() || {};
@@ -894,16 +1202,16 @@ function listenToGroup() {
       await reloadCityContext(groupData.cityKey);
     }
 
+    answeredCheckpointIds = Array.isArray(groupData.answeredCheckpointIds)
+      ? groupData.answeredCheckpointIds
+      : [];
 
-
-    
-    answeredCheckpointIds = Array.isArray(groupData.answeredCheckpointIds) ? groupData.answeredCheckpointIds : [];
     pendingCollectibleCheckpointId = groupData.pendingCollectibleCheckpointId || null;
     routeCompleted = !!groupData.gatherMode || !!groupData.finished;
     gameStartTimestamp = groupData.startedAt || groupData.createdAt || null;
 
-    byId("loginCard").classList.add("hidden");
-    byId("gameArea").classList.remove("hidden");
+    byId("loginCard")?.classList.add("hidden");
+    byId("gameArea")?.classList.remove("hidden");
 
     updateStudentTopUI();
     updateRankingUI();
@@ -913,23 +1221,36 @@ function listenToGroup() {
     updateEvidenceUI();
     updateMapVisibilityFromEffects();
     showIntroIfNeeded();
-    processIncomingCommands();
     maybeShowBroadcast();
-    maybeOpenQuestionFromLocation();
-    maybeCheckCollectiblePickup();
-    maybeCheckGatherCompletion();
+    await processIncomingCommands();
+    await maybeOpenQuestionFromLocation();
+    await maybeCheckCollectiblePickup();
+    await maybeCheckGatherCompletion();
   });
 }
 
 function listenToAllGroups() {
-  onValue(ref(db, "groups"), (snapshot) => {
+  if (unsubscribeAllGroupsListener) {
+    unsubscribeAllGroupsListener();
+    unsubscribeAllGroupsListener = null;
+  }
+
+  unsubscribeAllGroupsListener = onValue(ref(db, "groups"), (snapshot) => {
     groupsCache = snapshot.val() || {};
     updateRankingUI();
+    updateEvidenceUI();
   });
 }
 
 function listenToBroadcasts() {
-  onValue(ref(db, `control/broadcasts/${cityKey}`), (snapshot) => {
+  if (!cityKey) return;
+
+  if (unsubscribeBroadcastListener) {
+    unsubscribeBroadcastListener();
+    unsubscribeBroadcastListener = null;
+  }
+
+  unsubscribeBroadcastListener = onValue(ref(db, `control/broadcasts/${cityKey}`), (snapshot) => {
     if (!snapshot.exists()) return;
     maybeShowBroadcast(snapshot.val());
   });
@@ -937,6 +1258,7 @@ function listenToBroadcasts() {
 
 function maybeShowBroadcast(broadcast = null) {
   if (!broadcast) return;
+
   const at = Number(broadcast.at || 0);
   if (at <= globalBroadcastDismissedAt) return;
   if (!broadcast.text) return;
@@ -945,49 +1267,15 @@ function maybeShowBroadcast(broadcast = null) {
   showTeacherMessage(broadcast.text);
 }
 
-async function reloadCityContext(newCityKey, options = {}) {
-  const { preserveMapView = false } = options;
-
-  if (!newCityKey) return;
-  if (cityKey === newCityKey && cityData && checkpoints.length) return;
-
-  cityKey = newCityKey;
-  localStorage.setItem("activeCityKey", cityKey);
-
-  await loadCityAndGameType();
-
-  if (!map) {
-    initMap();
-  } else if (!preserveMapView) {
-    const center = cityData?.center || [50.85, 4.35];
-    map.setView(center, 16);
-
-    if (gatherMarker) {
-      map.removeLayer(gatherMarker);
-      gatherMarker = null;
-    }
-
-    if (cityData?.gather?.coords) {
-      gatherMarker = L.marker(cityData.gather.coords)
-        .addTo(map)
-        .bindPopup(cityData.gather.name || "Verzamelpunt");
-    }
+function listenToTeacherCurrentCity() {
+  if (unsubscribeTeacherCityListener) {
+    unsubscribeTeacherCityListener();
+    unsubscribeTeacherCityListener = null;
   }
 
-  updateCheckpointVisuals();
-  updateStudentTopUI();
-  updateInventoryTexts();
-  updateRankingUI();
-  updateArrowToTarget();
-  applyTheme();
-}
-
-function listenToTeacherCurrentCity() {
-  onValue(ref(db, "control/currentCity"), async (snapshot) => {
+  unsubscribeTeacherCityListener = onValue(ref(db, "control/currentCity"), async (snapshot) => {
     currentTeacherCity = snapshot.val() || null;
-    cityControlReady = true;
 
-    // Als groep al bestaat en een cityKey heeft, dan is die leidend.
     if (groupData?.cityKey) {
       if (cityKey !== groupData.cityKey) {
         await reloadCityContext(groupData.cityKey);
@@ -995,72 +1283,88 @@ function listenToTeacherCurrentCity() {
       return;
     }
 
-    // Als er al een groupId bestaat maar groupData nog niet geladen is,
-    // wacht dan tot de groep geladen is.
     if (groupId && !groupData) return;
 
-    // Nog geen groep gestart? Volg dan de teacher-stad.
     if (!groupId && currentTeacherCity) {
       await reloadCityContext(currentTeacherCity);
     }
   });
 }
 
-/* =========================================================
-   EFFECTS / COMMANDS
-========================================================= */
-function getActiveEffects() {
-  const effectsObj = groupData?.effects || {};
-  const all = Object.values(effectsObj);
-  const now = nowMs();
-  return all.filter((e) => !e.endsAt || e.endsAt > now);
-}
+async function reloadCityContext(newCityKey, options = {}) {
+  const { preserveMapView = false } = options;
 
-async function cleanupExpiredEffects() {
-  if (!groupId || !groupData?.effects) return;
+  if (!newCityKey) return;
+  const sameCity = cityKey === newCityKey && cityData && checkpoints.length;
 
-  const updates = {};
-  const now = nowMs();
+  cityKey = newCityKey;
+  localStorage.setItem("activeCityKey", cityKey);
 
-  Object.entries(groupData.effects).forEach(([effectId, effect]) => {
-    if (effect?.endsAt && effect.endsAt <= now) {
-      updates[`effects/${effectId}`] = null;
-    }
-  });
-
-  if (Object.keys(updates).length) {
-    await update(ref(db, `groups/${groupId}`), updates);
+  if (!sameCity) {
+    await loadCityAndGameType();
+    listenToBroadcasts();
   }
+
+  if (!map) {
+    initMap();
+  } else if (!preserveMapView) {
+    const center = cityData?.center || [50.85, 4.35];
+    map.setView(center, 16);
+    refreshGatherMarker();
+  }
+
+  await applyTheme();
+  updateCheckpointVisuals();
+  updateStudentTopUI();
+  updateInventoryTexts();
+  updateRankingUI();
+  updateArrowToTarget();
+  updateMapVisibilityFromEffects();
 }
 
+/* =========================================================
+   COMMANDS
+========================================================= */
 async function processIncomingCommands() {
   if (!groupData || !groupId) return;
 
-  if (groupData.commandMessageAt && groupData.commandMessageAt > lastProcessedCommandTimestamps.commandMessageAt) {
+  if (
+    groupData.commandMessageAt &&
+    groupData.commandMessageAt > lastProcessedCommandTimestamps.commandMessageAt
+  ) {
     lastProcessedCommandTimestamps.commandMessageAt = groupData.commandMessageAt;
-    if (groupData.commandMessageText) showTeacherMessage(groupData.commandMessageText);
+    if (groupData.commandMessageText) {
+      showTeacherMessage(groupData.commandMessageText);
+    }
   }
 
-  if (groupData.commandPointsAt && groupData.commandPointsAt > lastProcessedCommandTimestamps.commandPointsAt) {
+  if (
+    groupData.commandPointsAt &&
+    groupData.commandPointsAt > lastProcessedCommandTimestamps.commandPointsAt
+  ) {
     lastProcessedCommandTimestamps.commandPointsAt = groupData.commandPointsAt;
     const value = Number(groupData.commandPointsValue || 0);
     if (value !== 0) {
       const newScore = Number(groupData.score || 0) + value;
-      await update(ref(db, `groups/${groupId}`), {
-        score: newScore
-      });
+      await update(ref(db, `groups/${groupId}`), { score: newScore });
     }
   }
 
-  if (groupData.commandResetAt && groupData.commandResetAt > lastProcessedCommandTimestamps.commandResetAt) {
+  if (
+    groupData.commandResetAt &&
+    groupData.commandResetAt > lastProcessedCommandTimestamps.commandResetAt
+  ) {
     lastProcessedCommandTimestamps.commandResetAt = groupData.commandResetAt;
     await hardResetCurrentGroup();
     return;
   }
 
-  if (groupData.commandNextAt && groupData.commandNextAt > lastProcessedCommandTimestamps.commandNextAt) {
+  if (
+    groupData.commandNextAt &&
+    groupData.commandNextAt > lastProcessedCommandTimestamps.commandNextAt
+  ) {
     lastProcessedCommandTimestamps.commandNextAt = groupData.commandNextAt;
-    await advanceToNextCheckpoint(false);
+    await advanceToNextCheckpoint();
   }
 
   await cleanupExpiredEffects();
@@ -1069,11 +1373,13 @@ async function processIncomingCommands() {
 async function hardResetCurrentGroup() {
   if (!groupId) return;
 
+  const routeIndex = 0;
+
   await update(ref(db, `groups/${groupId}`), {
     score: 0,
-    routeIndex: 0,
-    checkpoint: checkpoints[0]?.name || "",
-    nextCheckpoint: checkpoints[1]?.name || "",
+    routeIndex,
+    checkpoint: checkpoints[routeIndex]?.name || "",
+    nextCheckpoint: checkpoints[routeIndex + 1]?.name || "",
     evidence: [],
     evidenceCount: 0,
     answeredCheckpointIds: [],
@@ -1098,25 +1404,23 @@ async function hardResetCurrentGroup() {
 }
 
 /* =========================================================
-   QUESTION / CHECKPOINT FLOW
+   CHECKPOINT FLOW
 ========================================================= */
 async function maybeOpenQuestionFromLocation() {
   if (!groupData || routeCompleted) return;
   if (questionOpen) return;
   if (pendingCollectibleCheckpointId) return;
-
-  const activeEffects = getActiveEffects();
-  if (activeEffects.some(e => e.type === "freeze")) return;
+  if (hasActiveEffect("freeze")) return;
 
   const cp = getCurrentCheckpoint();
   if (!cp || !Array.isArray(cp.coords)) return;
-
   if (currentLat == null || currentLng == null) return;
+  if (isCurrentCheckpointAnswered()) return;
 
   const dist = distanceMeters([currentLat, currentLng], cp.coords);
   const within = dist <= Number(cp.radius || 20);
 
-  if (within && !isCurrentCheckpointAnswered()) {
+  if (within) {
     openQuestionForCheckpoint(cp);
   }
 }
@@ -1127,64 +1431,71 @@ async function submitCheckpointAnswer() {
 
   const answer = getUserAnswerForCheckpoint(cp);
   const correct = validateCheckpointAnswer(cp, answer);
+  const maxTries = Number(cp.maxTries || currentGameType?.rules?.maxTries || 3);
 
   if (correct) {
-    byId("answerFeedback").innerText = "Juist antwoord!";
+    if (byId("answerFeedback")) {
+      byId("answerFeedback").innerText = "Juist antwoord!";
+    }
     flashSuccess();
-    await handleCheckpointSolved(cp, true);
+    await handleCheckpointSolved(cp, true, false);
     return;
   }
 
   currentTries += 1;
-  byId("answerFeedback").innerText = "Nog niet juist.";
-  byId("triesFeedback").innerText = `Poging ${currentTries} / ${Number(currentGameType?.rules?.maxTries || 3)}`;
+
+  if (byId("answerFeedback")) {
+    byId("answerFeedback").innerText = "Nog niet juist.";
+  }
+
+  if (byId("triesFeedback")) {
+    byId("triesFeedback").innerText = `Poging ${currentTries} / ${maxTries}`;
+  }
+
   showErrorShake();
 
-  const maxTries = Number(currentGameType?.rules?.maxTries || cp.maxTries || 3);
   if (currentTries >= maxTries) {
-    await handleCheckpointSolved(cp, false);
+    await handleCheckpointSolved(cp, false, true);
   }
 }
 
-async function handleCheckpointSolved(cp, answeredCorrectly) {
+async function handleCheckpointSolved(cp, answeredCorrectly, reachedMaxTries) {
   const cpId = cp.id;
 
   if (!answeredCheckpointIds.includes(cpId)) {
     answeredCheckpointIds = [...answeredCheckpointIds, cpId];
   }
 
-  let addedScore = 0;
-  if (answeredCorrectly) {
-    addedScore = Number(cp.pointsCorrect || 10);
-  } else {
-    addedScore = Number(cp.pointsAfterMaxTries || 0);
-  }
+  const addedScore = answeredCorrectly
+    ? Number(cp.pointsCorrect || 10)
+    : Number(cp.pointsAfterMaxTries || 0);
 
   const newScore = Number(groupData.score || 0) + addedScore;
 
-  const baseUpdate = {
+  await update(ref(db, `groups/${groupId}`), {
     score: newScore,
     answeredCheckpointIds,
     evidenceCount: (groupData.evidence || []).length
-  };
-
-  await update(ref(db, `groups/${groupId}`), baseUpdate);
+  });
 
   closeQuestionModal();
 
-  if (checkpointUnlockChoiceEnabled(cp)) {
-    await showCheckpointRewardChoice(cp, answeredCorrectly);
-  } else {
-    await advanceToNextCheckpoint(false);
+  const canGrantCollectible = shouldGrantCollectible(cp, answeredCorrectly, reachedMaxTries);
+
+  if (!canGrantCollectible) {
+    await advanceToNextCheckpoint();
+    return;
   }
+
+  await showCheckpointRewardChoice(cp);
 }
 
-async function showCheckpointRewardChoice(cp, answeredCorrectly) {
+async function showCheckpointRewardChoice(cp) {
   const wantsSearchZone = shouldUseSearchChoice(cp);
   const canCollectible = !!cp.collectible;
 
   if (!canCollectible) {
-    await advanceToNextCheckpoint(false);
+    await advanceToNextCheckpoint();
     return;
   }
 
@@ -1194,63 +1505,71 @@ async function showCheckpointRewardChoice(cp, answeredCorrectly) {
       : "Wil je het collectible ontvangen? Kies OK voor het collectible, Annuleren om meteen naar het volgende checkpoint te gaan."
   );
 
-  if (choice) {
-    if (wantsSearchZone) {
-      pendingCollectibleCheckpointId = cp.id;
-      await update(ref(db, `groups/${groupId}`), {
-        pendingCollectibleCheckpointId: cp.id
-      });
-      updateCheckpointVisuals();
-    } else {
-      await giveCollectibleToGroup(cp.collectible);
-      await advanceToNextCheckpoint(false);
-    }
-  } else {
-    await advanceToNextCheckpoint(false);
+  if (!choice) {
+    await advanceToNextCheckpoint();
+    return;
   }
+
+  if (wantsSearchZone) {
+    pendingCollectibleCheckpointId = cp.id;
+
+    await update(ref(db, `groups/${groupId}`), {
+      pendingCollectibleCheckpointId: cp.id
+    });
+
+    updateCheckpointVisuals();
+    return;
+  }
+
+  await giveCollectibleToGroup(cp.collectible);
+  await advanceToNextCheckpoint();
 }
 
 async function maybeCheckCollectiblePickup() {
   if (!groupData || !pendingCollectibleCheckpointId) return;
   if (currentLat == null || currentLng == null) return;
 
-  const cp = checkpoints.find(c => c.id === pendingCollectibleCheckpointId);
+  const cp = checkpoints.find((c) => c.id === pendingCollectibleCheckpointId);
   if (!cp || !cp.collectible) return;
 
   const collectibleCoords = getCollectibleCoords(cp);
-  const revealDistance =
-    Number(cp.collectibleRevealDistance || cp.collectible?.revealDistance || currentGameType?.collectibles?.revealDistance || 15);
+  if (!Array.isArray(collectibleCoords)) return;
 
   const dist = distanceMeters([currentLat, currentLng], collectibleCoords);
+  const revealDistance = getRevealDistance(cp);
 
   updateCheckpointVisuals();
 
-  if (dist <= revealDistance) {
-    const shouldPickup = window.confirm(`Collectible gevonden: ${cp.collectible.name}. Wil je dit item opnemen?`);
-    if (!shouldPickup) return;
+  if (dist > revealDistance) return;
 
-    await giveCollectibleToGroup(cp.collectible);
+  const shouldPickup = window.confirm(
+    `Collectible gevonden: ${cp.collectible.name || "Item"}. Wil je dit item opnemen?`
+  );
+  if (!shouldPickup) return;
 
-    pendingCollectibleCheckpointId = null;
-    await update(ref(db, `groups/${groupId}`), {
-      pendingCollectibleCheckpointId: null
-    });
+  await giveCollectibleToGroup(cp.collectible);
 
-    await advanceToNextCheckpoint(false);
-  }
+  pendingCollectibleCheckpointId = null;
+  await update(ref(db, `groups/${groupId}`), {
+    pendingCollectibleCheckpointId: null
+  });
+
+  await advanceToNextCheckpoint();
 }
 
-async function advanceToNextCheckpoint(force = false) {
+async function advanceToNextCheckpoint() {
   const currentIndex = getCurrentCheckpointIndex();
   const nextIndex = currentIndex + 1;
 
   if (nextIndex >= checkpoints.length) {
     routeCompleted = true;
+
     await update(ref(db, `groups/${groupId}`), {
       gatherMode: true,
       checkpoint: cityData?.gather?.name || "Verzamelpunt",
       nextCheckpoint: "-"
     });
+
     updateCheckpointVisuals();
     updateStudentTopUI();
     return;
@@ -1259,7 +1578,10 @@ async function advanceToNextCheckpoint(force = false) {
   await update(ref(db, `groups/${groupId}`), {
     routeIndex: nextIndex,
     checkpoint: checkpoints[nextIndex]?.name || "",
-    nextCheckpoint: checkpoints[nextIndex + 1]?.name || (cityData?.gather?.name || "Verzamelpunt"),
+    nextCheckpoint:
+      checkpoints[nextIndex + 1]?.name ||
+      cityData?.gather?.name ||
+      "Verzamelpunt",
     pendingCollectibleCheckpointId: null
   });
 
@@ -1274,7 +1596,7 @@ async function maybeCheckGatherCompletion() {
   if (!cityData?.gather?.coords) return;
 
   const dist = distanceMeters([currentLat, currentLng], cityData.gather.coords);
-  const within = dist <= Number(cityData?.gather?.radius || 40);
+  const within = dist <= Number(cityData.gather.radius || 40);
 
   if (!within) return;
 
@@ -1304,6 +1626,7 @@ async function maybeCheckGatherCompletion() {
 ========================================================= */
 function buildNormalizedItem(item) {
   if (!item) return null;
+
   return {
     id: item.id || `item_${Date.now()}`,
     name: item.name || "Item",
@@ -1316,6 +1639,9 @@ function buildNormalizedItem(item) {
     actionDuration: Number(item.actionDuration || 30),
     actionValue: Number(item.actionValue || 15),
     targetMode: item.targetMode || "enemy",
+    mapVisibility: item.mapVisibility || "blurZone",
+    searchRadius: Number(item.searchRadius || 30),
+    revealDistance: Number(item.revealDistance || 15),
     used: !!item.used
   };
 }
@@ -1327,7 +1653,7 @@ function isUsableEvidenceItem(item) {
 async function giveCollectibleToGroup(rawCollectible) {
   if (!groupId || !rawCollectible) return;
 
-  const currentItems = Array.isArray(groupData.evidence) ? groupData.evidence : [];
+  const currentItems = Array.isArray(groupData?.evidence) ? groupData.evidence : [];
   const newItem = buildNormalizedItem({
     ...rawCollectible,
     id: `item_${Date.now()}_${Math.floor(Math.random() * 10000)}`
@@ -1344,9 +1670,11 @@ async function giveCollectibleToGroup(rawCollectible) {
 }
 
 function showFoundEvidenceModal(item) {
-  byId("foundEvidenceIcon").innerText = item.icon || "✨";
-  byId("foundEvidenceName").innerText = item.name || "Nieuw item";
-  byId("foundEvidenceDescription").innerText = item.description || "Item toegevoegd.";
+  if (byId("foundEvidenceIcon")) byId("foundEvidenceIcon").innerText = item.icon || "✨";
+  if (byId("foundEvidenceName")) byId("foundEvidenceName").innerText = item.name || "Nieuw item";
+  if (byId("foundEvidenceDescription")) {
+    byId("foundEvidenceDescription").innerText = item.description || "Item toegevoegd.";
+  }
   showModal("evidenceFoundModal");
 }
 
@@ -1367,11 +1695,14 @@ function updateEvidenceUI() {
   }
 
   if (quickSlots) {
-    quickSlots.innerHTML = items.slice(0, 4).map((item, index) => `
-      <button type="button" data-quick-item="${index}">
-        ${item.icon || "❓"} ${item.name || "Item"}
-      </button>
-    `).join("");
+    quickSlots.innerHTML = items
+      .slice(0, 4)
+      .map((item, index) => `
+        <button type="button" data-quick-item="${index}">
+          ${item.icon || "❓"} ${item.name || "Item"}
+        </button>
+      `)
+      .join("");
 
     quickSlots.querySelectorAll("[data-quick-item]").forEach((btn) => {
       btn.addEventListener("click", () => {
@@ -1383,12 +1714,14 @@ function updateEvidenceUI() {
 
   if (evidenceGrid) {
     evidenceGrid.innerHTML = items.length
-      ? items.map((item, index) => `
-          <button type="button" class="evidence-slot" data-evidence-item="${index}">
-            <div class="evidence-slot-icon">${item.icon || "❓"}</div>
-            <div class="evidence-slot-name">${item.name || "Item"}</div>
-          </button>
-        `).join("")
+      ? items
+          .map((item, index) => `
+            <button type="button" class="evidence-slot" data-evidence-item="${index}">
+              <div class="evidence-slot-icon">${item.icon || "❓"}</div>
+              <div class="evidence-slot-name">${item.name || "Item"}</div>
+            </button>
+          `)
+          .join("")
       : `<p>Jullie hebben nog geen items verzameld.</p>`;
 
     evidenceGrid.querySelectorAll("[data-evidence-item]").forEach((btn) => {
@@ -1404,21 +1737,27 @@ function renderEvidenceDetail(index) {
   const item = items[index];
 
   if (!item) {
-    byId("evidenceDetailIcon").innerText = "❓";
-    byId("evidenceDetailName").innerText = "Nog geen item geselecteerd";
-    byId("evidenceDetailDescription").innerText = "Klik op een item om meer informatie te bekijken.";
-    byId("evidenceDetailStatus").innerText = "Status: onbekend";
+    if (byId("evidenceDetailIcon")) byId("evidenceDetailIcon").innerText = "❓";
+    if (byId("evidenceDetailName")) byId("evidenceDetailName").innerText = "Nog geen item geselecteerd";
+    if (byId("evidenceDetailDescription")) {
+      byId("evidenceDetailDescription").innerText = "Klik op een item om meer informatie te bekijken.";
+    }
+    if (byId("evidenceDetailStatus")) byId("evidenceDetailStatus").innerText = "Status: onbekend";
     return;
   }
 
-  byId("evidenceDetailIcon").innerText = item.icon || "❓";
-  byId("evidenceDetailName").innerText = item.name || "Item";
-  byId("evidenceDetailDescription").innerText = item.description || "Geen beschrijving.";
-  byId("evidenceDetailStatus").innerText = item.used
-    ? "Status: reeds gebruikt"
-    : isUsableEvidenceItem(item)
-      ? `Status: bruikbaar item, bereik ${item.actionRange || 25} meter`
-      : "Status: verzameld";
+  if (byId("evidenceDetailIcon")) byId("evidenceDetailIcon").innerText = item.icon || "❓";
+  if (byId("evidenceDetailName")) byId("evidenceDetailName").innerText = item.name || "Item";
+  if (byId("evidenceDetailDescription")) {
+    byId("evidenceDetailDescription").innerText = item.description || "Geen beschrijving.";
+  }
+  if (byId("evidenceDetailStatus")) {
+    byId("evidenceDetailStatus").innerText = item.used
+      ? "Status: reeds gebruikt"
+      : isUsableEvidenceItem(item)
+        ? `Status: bruikbaar item, bereik ${item.actionRange || 25} meter`
+        : "Status: verzameld";
+  }
 
   const detailCard = qs(".evidence-detail-card");
   if (!detailCard) return;
@@ -1431,19 +1770,20 @@ function renderEvidenceDetail(index) {
     actionBlock.className = "evidence-action-block";
     actionBlock.style.marginTop = "12px";
 
+    const nearby = findNearbyTargetGroup(item.actionRange || 25);
+
+    const info = document.createElement("p");
+    info.className = "small-note";
+    info.innerText = nearby
+      ? `Groep ${nearby.data.groupNumber || "?"} is binnen bereik op ${formatMeters(nearby.distance)}.`
+      : "Geen andere groep binnen bereik.";
+
     const btn = document.createElement("button");
     btn.type = "button";
     btn.innerText = "Gebruik item";
     btn.addEventListener("click", async () => {
       await useEvidenceItem(index);
     });
-
-    const nearby = findNearbyTargetGroup(item.actionRange || 25);
-    const info = document.createElement("p");
-    info.className = "small-note";
-    info.innerText = nearby
-      ? `Groep ${nearby.data.groupNumber || "?"} is binnen bereik.`
-      : "Geen andere groep binnen bereik.";
 
     actionBlock.appendChild(info);
     actionBlock.appendChild(btn);
@@ -1470,7 +1810,6 @@ function findNearbyTargetGroup(range = 25) {
     if (g.finished) return;
 
     const dist = distanceMeters([currentLat, currentLng], [g.lat, g.lng]);
-
     if (dist <= range && dist < closestDist) {
       closest = { id, data: g, distance: dist };
       closestDist = dist;
@@ -1481,7 +1820,10 @@ function findNearbyTargetGroup(range = 25) {
 }
 
 async function markEvidenceItemUsed(index) {
-  const currentItems = Array.isArray(groupData?.evidence) ? [...groupData.evidence] : [];
+  const currentItems = Array.isArray(groupData?.evidence)
+    ? [...groupData.evidence]
+    : [];
+
   if (!currentItems[index]) return;
 
   currentItems.splice(index, 1);
@@ -1492,40 +1834,35 @@ async function markEvidenceItemUsed(index) {
   });
 }
 
+function targetHasShield(target) {
+  const effects = Object.values(target?.effects || {});
+  const now = nowMs();
+  return effects.some((effect) => effect?.type === "shield" && (!effect.endsAt || effect.endsAt > now));
+}
+
 async function applyEffectToTargetGroup(targetId, item) {
   if (!targetId || !item) return;
 
   const effectId = `effect_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
+  const targetSnap = await get(ref(db, `groups/${targetId}`));
+  const sourceSnap = await get(ref(db, `groups/${groupId}`));
+
+  const target = targetSnap.exists() ? targetSnap.val() : null;
+  const source = sourceSnap.exists() ? sourceSnap.val() : null;
+
+  if (!target || !source) return;
+
+  if (targetHasShield(target) && item.actionType !== "cleanse") {
+    alert("Doelgroep is beschermd door een schild.");
+    return;
+  }
 
   if (item.actionType === "map_blur") {
     await set(ref(db, `groups/${targetId}/effects/${effectId}`), {
       type: "map_blur",
       startedAt: nowMs(),
-      endsAt: nowMs() + Number(item.actionDuration || 30) * 1000,
+      endsAt: nowMs() + Number(item.actionDuration || 40) * 1000,
       sourceGroupId: groupId
-    });
-    return;
-  }
-
-  if (item.actionType === "score_steal") {
-    const amount = Number(item.actionValue || 15);
-
-    const targetSnap = await get(ref(db, `groups/${targetId}`));
-    const sourceSnap = await get(ref(db, `groups/${groupId}`));
-
-    const target = targetSnap.exists() ? targetSnap.val() : null;
-    const source = sourceSnap.exists() ? sourceSnap.val() : null;
-    if (!target || !source) return;
-
-    const targetScore = Math.max(0, Number(target.score || 0) - amount);
-    const sourceScore = Number(source.score || 0) + amount;
-
-    await update(ref(db, `groups/${targetId}`), {
-      score: targetScore
-    });
-
-    await update(ref(db, `groups/${groupId}`), {
-      score: sourceScore
     });
     return;
   }
@@ -1534,7 +1871,7 @@ async function applyEffectToTargetGroup(targetId, item) {
     await set(ref(db, `groups/${targetId}/effects/${effectId}`), {
       type: "compass_off",
       startedAt: nowMs(),
-      endsAt: nowMs() + Number(item.actionDuration || 30) * 1000,
+      endsAt: nowMs() + Number(item.actionDuration || 40) * 1000,
       sourceGroupId: groupId
     });
     return;
@@ -1547,6 +1884,26 @@ async function applyEffectToTargetGroup(targetId, item) {
       endsAt: nowMs() + Number(item.actionDuration || 20) * 1000,
       sourceGroupId: groupId
     });
+    return;
+  }
+
+  if (item.actionType === "shield") {
+    await set(ref(db, `groups/${groupId}/effects/${effectId}`), {
+      type: "shield",
+      startedAt: nowMs(),
+      endsAt: nowMs() + Number(item.actionDuration || 40) * 1000,
+      sourceGroupId: groupId
+    });
+    return;
+  }
+
+  if (item.actionType === "score_steal") {
+    const amount = Number(item.actionValue || 15);
+    const targetScore = Math.max(0, Number(target.score || 0) - amount);
+    const sourceScore = Number(source.score || 0) + amount;
+
+    await update(ref(db, `groups/${targetId}`), { score: targetScore });
+    await update(ref(db, `groups/${groupId}`), { score: sourceScore });
   }
 }
 
@@ -1555,6 +1912,18 @@ async function useEvidenceItem(itemIndex) {
   const item = items[itemIndex];
 
   if (!item || !isUsableEvidenceItem(item)) return;
+
+  if (item.actionType === "shield") {
+    const okSelf = window.confirm(`Gebruik "${item.name}" op je eigen groep?`);
+    if (!okSelf) return;
+
+    await applyEffectToTargetGroup(groupId, item);
+    await markEvidenceItemUsed(itemIndex);
+    updateEvidenceUI();
+    renderEvidenceDetail(0);
+    alert("Schild geactiveerd.");
+    return;
+  }
 
   const nearby = findNearbyTargetGroup(item.actionRange || 25);
   if (!nearby) {
@@ -1576,10 +1945,14 @@ async function useEvidenceItem(itemIndex) {
 }
 
 /* =========================================================
-   LOCATION / WATCH
+   LOCATION / GPS
 ========================================================= */
-async function syncGroupPosition() {
+async function syncGroupPosition(force = false) {
   if (!groupId || currentLat == null || currentLng == null) return;
+
+  const now = nowMs();
+  if (!force && now - lastPositionSyncAt < 1500) return;
+  lastPositionSyncAt = now;
 
   await update(ref(db, `groups/${groupId}`), {
     lat: currentLat,
@@ -1593,6 +1966,8 @@ async function syncGroupPosition() {
 }
 
 function startLocationWatch() {
+  if (watchId != null) return;
+
   if (!navigator.geolocation) {
     alert("Geolocatie wordt niet ondersteund op dit toestel.");
     return;
@@ -1612,6 +1987,7 @@ function startLocationWatch() {
       updateArrowToTarget();
       updateCheckpointVisuals();
       updateMapVisibilityFromEffects();
+
       await syncGroupPosition();
       await maybeOpenQuestionFromLocation();
       await maybeCheckCollectiblePickup();
@@ -1637,28 +2013,22 @@ async function bootstrap() {
   appReady = true;
 
   parseUrlParams();
-  restoreGroupIdForCity();
 
-  // Eerst luisteren naar teacher city control
+  if (cityKey) {
+    restoreGroupIdForCity();
+  }
+
   listenToTeacherCurrentCity();
 
-  // Als er al een URL of localStorage stad is, laad die voorlopig.
   if (cityKey) {
     await reloadCityContext(cityKey);
-  }
-
-  // Als er nog geen stad is, wacht even op control/currentCity
-  if (!cityKey && currentTeacherCity) {
+  } else if (currentTeacherCity) {
     await reloadCityContext(currentTeacherCity);
-  }
-
-  if (!cityKey) {
-    // fallback als er nog niets actief staat
+  } else {
     await reloadCityContext("durbuy");
   }
 
   listenToAllGroups();
-  listenToBroadcasts();
 
   if (groupId) {
     listenToGroup();
@@ -1677,17 +2047,49 @@ async function bootstrap() {
   byId("closeEvidenceButton")?.addEventListener("click", () => hideModal("evidenceModal"));
   byId("closeFoundEvidenceButton")?.addEventListener("click", () => hideModal("evidenceFoundModal"));
 
+  const photoInput = byId("photoInput");
+  if (photoInput) {
+    photoInput.addEventListener("change", () => {
+      const file = photoInput.files?.[0] || null;
+      const preview = byId("photoPreview");
+      const status = byId("photoUploadStatus");
+
+      if (!file) {
+        if (preview) {
+          preview.src = "";
+          preview.classList.add("hidden-task");
+        }
+        if (status) status.innerText = "";
+        return;
+      }
+
+      if (preview) {
+        preview.src = URL.createObjectURL(file);
+        preview.classList.remove("hidden-task");
+      }
+
+      if (status) {
+        status.innerText = "Foto klaar om als bewijs van opdracht te gebruiken.";
+      }
+    });
+  }
+
   const toggleAudioButton = byId("toggleAudioButton");
   if (toggleAudioButton) {
     let muted = false;
+
     toggleAudioButton.addEventListener("click", () => {
       muted = !muted;
+
       document.querySelectorAll("audio, video").forEach((el) => {
         el.muted = muted;
         if (muted) {
-          try { el.pause(); } catch {}
+          try {
+            el.pause();
+          } catch {}
         }
       });
+
       toggleAudioButton.innerText = muted ? "🔊 Geluid aan" : "🔇 Geluid uit";
     });
   }
