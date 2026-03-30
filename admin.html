@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>City Escape Admin</title>
-  <link rel="stylesheet" href="style.css?v=20260328-admin-ui-1">
+  <link rel="stylesheet" href="style.css?v=20260330-admin-sabotage-1">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 </head>
 <body>
@@ -72,10 +72,6 @@
             <input id="cityCenterLng" type="number" step="any" placeholder="Longitude van het stadscentrum">
           </div>
         </div>
-
-        <p class="small-note">
-          Dit is het punt waarop de kaart standaard opent in de admin en bij de leerlingen.
-        </p>
       </div>
 
       <div class="card">
@@ -98,10 +94,6 @@
 
         <label for="gatherRadiusInput">Straal verzamelpunt</label>
         <input id="gatherRadiusInput" type="number" placeholder="bv. 40">
-
-        <p class="small-note">
-          Dit punt wordt gebruikt als einddoel of samenkomstpunt wanneer het speltype dat nodig heeft.
-        </p>
       </div>
 
       <div class="card">
@@ -109,10 +101,6 @@
 
         <label for="cityThemeSelector">Thema van de stad</label>
         <select id="cityThemeSelector"></select>
-
-        <p class="small-note">
-          Het thema bepaalt de visuele stijl, kleuren, icoontjes en sfeer.
-        </p>
 
         <label for="cityGameTypeSelector">Speltype van de stad</label>
         <select id="cityGameTypeSelector"></select>
@@ -160,10 +148,6 @@
 
         <label for="cpRadius">Straal checkpoint</label>
         <input id="cpRadius" type="number" placeholder="bv. 20">
-
-        <p class="small-note">
-          Zodra leerlingen binnen deze straal komen, wordt het checkpoint actief.
-        </p>
 
         <label for="cpTaskType">Type opdracht</label>
         <select id="cpTaskType">
@@ -286,7 +270,11 @@
                 <option value="📎">📎 Bewijsklem</option>
                 <option value="🗞️">🗞️ Krantenknipsel</option>
                 <option value="📷">📷 Foto</option>
-                <option value="🧱">🧱 Baksteen / fragment</option>
+                <option value="💨">💨 Rookbom</option>
+                <option value="🪙">🪙 Zakkenrollersmunt</option>
+                <option value="🧭">🧭 Kompasstoring</option>
+                <option value="🧊">🧊 Bevriezing</option>
+                <option value="🛡️">🛡️ Schild</option>
               </select>
             </div>
 
@@ -307,6 +295,49 @@
 
           <label for="cpCollectibleDescription">Beschrijving item</label>
           <textarea id="cpCollectibleDescription" placeholder="Beschrijving of betekenis van het item"></textarea>
+
+          <h3>Sabotage / bruikbaar item</h3>
+
+          <label for="cpCollectibleActionType">Actietype van dit item</label>
+          <select id="cpCollectibleActionType">
+            <option value="">Gewoon verzamelitem</option>
+            <option value="map_blur">Kaart wazig maken</option>
+            <option value="score_steal">Punten stelen</option>
+            <option value="compass_off">Kompas uitschakelen</option>
+            <option value="freeze">Groep tijdelijk blokkeren</option>
+          </select>
+
+          <p class="small-note">
+            Laat leeg als het item alleen informatief of decoratief is. Kies een actietype als het item bruikbaar moet zijn tegen andere groepen.
+          </p>
+
+          <div class="button-grid">
+            <div>
+              <label for="cpCollectibleActionRange">Bereik van het item (meter)</label>
+              <input id="cpCollectibleActionRange" type="number" placeholder="bv. 25">
+            </div>
+
+            <div>
+              <label for="cpCollectibleActionDuration">Duur van het effect (sec)</label>
+              <input id="cpCollectibleActionDuration" type="number" placeholder="bv. 30">
+            </div>
+          </div>
+
+          <div class="button-grid">
+            <div>
+              <label for="cpCollectibleActionValue">Waarde van het effect</label>
+              <input id="cpCollectibleActionValue" type="number" placeholder="bv. 15 punten">
+            </div>
+
+            <div>
+              <label for="cpCollectibleTargetMode">Doelwit</label>
+              <select id="cpCollectibleTargetMode">
+                <option value="enemy">Andere groep</option>
+                <option value="self">Eigen groep</option>
+                <option value="both">Beide mogelijk</option>
+              </select>
+            </div>
+          </div>
         </div>
 
         <div id="cpCollectibleAdvancedSection">
@@ -410,6 +441,6 @@
   </div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script type="module" src="admin.js?v=20260328-admin-smart-ui-1"></script>
+  <script type="module" src="admin.js?v=20260330-admin-sabotage-1"></script>
 </body>
 </html>
