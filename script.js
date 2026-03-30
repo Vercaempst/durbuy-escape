@@ -987,15 +987,37 @@ function renderMatchingTask(cp) {
 
   wrap.classList.remove("hidden-task");
 
-  container.innerHTML = `
-    <p class="small-note">Typ de koppels als links=rechts, één per lijn.</p>
-    <div class="info-list">
-      ${(cp.leftItems || []).map((left, i) => {
-        const right = (cp.rightItems || [])[i] || "";
-        return `<p>${left} ↔ ${right}</p>`;
-      }).join("")}
-    </div>
-  `;
+  const left = cp.leftItems || [];
+  const right = cp.rightItems || [];
+
+  container.innerHTML = "";
+
+  left.forEach((leftItem, index) => {
+    const row = document.createElement("div");
+    row.style.marginBottom = "10px";
+
+    const label = document.createElement("span");
+    label.innerText = leftItem + " → ";
+
+    const select = document.createElement("select");
+    select.dataset.left = leftItem;
+
+    const empty = document.createElement("option");
+    empty.value = "";
+    empty.innerText = "-- kies --";
+    select.appendChild(empty);
+
+    right.forEach((r) => {
+      const opt = document.createElement("option");
+      opt.value = r;
+      opt.innerText = r;
+      select.appendChild(opt);
+    });
+
+    row.appendChild(label);
+    row.appendChild(select);
+    container.appendChild(row);
+  });
 }
 
 function renderImagePuzzleTask(cp) {
@@ -1005,14 +1027,42 @@ function renderImagePuzzleTask(cp) {
 
   wrap.classList.remove("hidden-task");
 
-  if (cp.imageUrl || cp.image) {
-    grid.innerHTML = `
-      <p class="small-note">Bekijk de afbeelding en geef daarna je antwoord.</p>
-      <img src="${cp.imageUrl || cp.image}" alt="" style="max-width:100%; border-radius:14px;">
-    `;
-  } else {
-    grid.innerHTML = `<p>Geen puzzelafbeelding ingesteld.</p>`;
-  }
+  const size = Number(cp.gridSize || 3);
+  const total = size * size;
+
+  const order = [...Array(total).keys()];
+  const shuffled = [...order].sort(() => Math.random() - 0.5);
+
+  let userSequence = [];
+
+  grid.innerHTML = "";
+  grid.style.display = "grid";
+  grid.style.gridTemplateColumns = `repeat(${size}, 1fr)`;
+  grid.style.gap = "5px";
+
+  shuffled.forEach((num) => {
+    const tile = document.createElement("div");
+    tile.style.background = "#333";
+    tile.style.color = "white";
+    tile.style.padding = "20px";
+    tile.style.textAlign = "center";
+    tile.style.cursor = "pointer";
+    tile.innerText = num + 1;
+
+    tile.addEventListener("click", () => {
+      if (userSequence.includes(num)) return;
+
+      userSequence.push(num);
+      tile.style.background = "#22c55e";
+
+      if (userSequence.length === total) {
+        const correct = order.every((v, i) => v === userSequence[i]);
+        byId("modalAnswerInput").value = correct ? "correct" : "wrong";
+      }
+    });
+
+    grid.appendChild(tile);
+  });
 }
 
 function renderPhotoTask() {
@@ -1061,8 +1111,6 @@ function openQuestionForCheckpoint(cp) {
     input.style.display = (
       cp.taskType === "text" ||
       cp.taskType === "riddle" ||
-      cp.taskType === "matching" ||
-      cp.taskType === "imagePuzzle"
     ) ? "" : "none";
   }
 
@@ -1143,11 +1191,24 @@ function validateCheckpointAnswer(cp, userAnswer) {
   }
 
   if (cp.taskType === "matching") {
-    const expected = normalizeMatchingText(buildCorrectMatchingAnswer(cp));
-    const actual = normalizeMatchingText(userAnswer);
-    return expected && actual && expected === actual;
-  }
+  const selects = document.querySelectorAll("#matchingContainer select");
+  let correct = true;
 
+  selects.forEach((sel) => {
+    const left = sel.dataset.left;
+    const chosen = sel.value;
+    const expected = cp.correctPairs[left];
+
+    if (chosen !== expected) {
+      correct = false;
+    }
+  });
+
+  return correct;
+  }
+  if (cp.taskType === "imagePuzzle") {
+  return userAnswer === "correct";
+  }
   if (cp.taskType === "photo") {
     return String(userAnswer || "").trim() === "photo_uploaded";
   }
@@ -1507,6 +1568,10 @@ async function maybeOpenQuestionFromLocation() {
 async function submitCheckpointAnswer() {
   const cp = currentQuestionCheckpoint;
   if (!cp) return;
+  if (cp.taskType === "multipleChoice" && currentSelectedMultipleChoice === null) {
+  alert("Kies eerst een antwoord.");
+  return;
+  }
 
   const answer = getUserAnswerForCheckpoint(cp);
   const correct = validateCheckpointAnswer(cp, answer);
