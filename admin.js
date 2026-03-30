@@ -378,167 +378,6 @@ function getInventoryLabelFromModules() {
   return "Extra item";
 }
 
-function setLabelText(forId, text) {
-  const el = byId(forId);
-  if (!el) return;
-  const label = document.querySelector(`label[for="${forId}"]`);
-  if (label) label.innerText = text;
-}
-
-function setPlaceholder(id, text) {
-  const el = byId(id);
-  if (el) el.placeholder = text;
-}
-
-function setHelpTextAfterField(id, text) {
-  const el = byId(id);
-  if (!el) return;
-
-  const wrapper = el.parentElement;
-  if (!wrapper) return;
-
-  let help = wrapper.querySelector(`.dynamic-help[data-help-for="${id}"]`);
-  if (!text) {
-    if (help) help.remove();
-    return;
-  }
-
-  if (!help) {
-    help = document.createElement("p");
-    help.className = "small-note dynamic-help";
-    help.dataset.helpFor = id;
-    wrapper.appendChild(help);
-  }
-
-  help.innerText = text;
-}
-
-function updateSmartLabels() {
-  const modules = getActiveModules();
-  const engine = getSelectedGameType()?.engine || "classic";
-  const taskType = byId("cpTaskType")?.value || "text";
-
-  setLabelText("cpQuestion", "Vraag / opdracht");
-  setPlaceholder("cpQuestion", "Vraag of opdracht voor de leerlingen");
-
-  setLabelText("cpStory", "Verhaaltekst / sfeer");
-  setPlaceholder("cpStory", "Sfeer, context of verhaal bij dit checkpoint");
-
-  setLabelText("cpAnswers", "Juiste antwoorden");
-  setPlaceholder("cpAnswers", "Juiste antwoorden, gescheiden door komma's");
-
-  setLabelText("cpOptions", "Antwoordopties");
-  setPlaceholder("cpOptions", "Antwoordopties, gescheiden door komma's");
-
-  setLabelText("cpCorrectOption", "Juiste optie");
-  setPlaceholder("cpCorrectOption", "Index juiste optie, start bij 0");
-
-  setLabelText("cpCollectibleName", "Naam item");
-  setPlaceholder("cpCollectibleName", "Naam van het item");
-
-  setLabelText("cpCollectibleDescription", "Beschrijving item");
-  setPlaceholder("cpCollectibleDescription", "Beschrijving of betekenis van het item");
-
-  setLabelText("cpDialogText", "Dialoog / getuigenis");
-  setPlaceholder("cpDialogText", "Tekst van getuige, NPC of verdacht gesprek");
-
-  setLabelText("cpSabotageHint", "Sabotagebeschrijving");
-  setPlaceholder("cpSabotageHint", "Beschrijving van sabotage of geheime actie");
-
-  setLabelText("cpSecretObjectiveText", "Geheime opdracht");
-  setPlaceholder("cpSecretObjectiveText", "Geheime opdracht of verborgen doel");
-
-  if (engine === "murder" || modules.evidenceBook) {
-    setLabelText("cpQuestion", "Onderzoeksvraag / opdracht");
-    setPlaceholder("cpQuestion", "Welke observatie, redenering of analyse moeten leerlingen hier maken?");
-
-    setLabelText("cpStory", "Zaakcontext / sfeer");
-    setPlaceholder("cpStory", "Context rond de zaak, locatie of gebeurtenis");
-
-    setLabelText("cpCollectibleName", "Naam bewijsstuk");
-    setPlaceholder("cpCollectibleName", "Bijvoorbeeld: bebloed mes, brief, ring");
-
-    setLabelText("cpCollectibleDescription", "Beschrijving bewijsstuk");
-    setPlaceholder("cpCollectibleDescription", "Wat vertelt dit bewijsstuk? Waarom is het belangrijk?");
-
-    setLabelText("cpDialogText", "Getuigenis / ondervraging");
-    setPlaceholder("cpDialogText", "Fictieve getuigenis, verklaring of dialoog");
-  }
-
-  if (engine === "collectibles" || modules.collectibles) {
-    setLabelText("cpQuestion", "Vraag / ontdek-opdracht");
-    setPlaceholder("cpQuestion", "Vraag of opdracht die het collectible vrijspeelt");
-
-    setLabelText("cpStory", "Grimoiretekst / sfeer");
-    setPlaceholder("cpStory", "Verhaaltekst, sfeer of context voor dit verzamelobject");
-
-    setLabelText("cpCollectibleName", "Naam collectible");
-    setPlaceholder("cpCollectibleName", "Bijvoorbeeld: ritueel mes, oude munt, runesteen");
-
-    setLabelText("cpCollectibleDescription", "Grimoiretekst / itembeschrijving");
-    setPlaceholder("cpCollectibleDescription", "Wat leren leerlingen over dit object?");
-  }
-
-  if (modules.usableItems) {
-    setLabelText("cpCollectibleDescription", "Beschrijving / effect van item");
-    setPlaceholder("cpCollectibleDescription", "Wat doet dit item? Waarvoor kan het gebruikt worden?");
-  }
-
-  if (engine === "mol" || modules.sabotage || modules.secretRoles) {
-    setLabelText("cpQuestion", "Vraag / checkpoint-opdracht");
-    setPlaceholder("cpQuestion", "Vraag of opdracht die sabotage of geheime info kan vrijspelen");
-
-    setLabelText("cpCollectibleName", "Naam item / sabotage-object");
-    setPlaceholder("cpCollectibleName", "Bijvoorbeeld: rookbom, vloekkaart, schild");
-
-    setLabelText("cpCollectibleDescription", "Beschrijving item / sabotage");
-    setPlaceholder("cpCollectibleDescription", "Wat doet dit item? Op wie werkt het?");
-
-    setLabelText("cpSabotageHint", "Hint voor sabotage of geheime actie");
-    setPlaceholder("cpSabotageHint", "Beschrijf welke sabotage hier mogelijk is of wat de mol ermee kan doen");
-
-    setLabelText("cpSecretObjectiveText", "Geheime opdracht / mol-doel");
-    setPlaceholder("cpSecretObjectiveText", "Bijvoorbeeld: steel punten van een ander team");
-  }
-
-  if (engine === "hunters" || modules.chase) {
-    setLabelText("cpQuestion", "Vraag / jacht-opdracht");
-    setPlaceholder("cpQuestion", "Vraag of opdracht die jachtfase of rolwissel beïnvloedt");
-
-    setLabelText("cpCollectibleName", "Naam jacht-item");
-    setPlaceholder("cpCollectibleName", "Bijvoorbeeld: tracker, val, rooksignaal");
-
-    setLabelText("cpCollectibleDescription", "Beschrijving jacht-item");
-    setPlaceholder("cpCollectibleDescription", "Hoe helpt dit item bij jagen of ontsnappen?");
-  }
-
-  if (taskType === "multipleChoice") {
-    setHelpTextAfterField("cpOptions", "Geef de antwoordopties in dezelfde volgorde als ze getoond moeten worden.");
-    setHelpTextAfterField("cpCorrectOption", "De eerste optie heeft index 0, de tweede 1, enzovoort.");
-  } else {
-    setHelpTextAfterField("cpOptions", "");
-    setHelpTextAfterField("cpCorrectOption", "");
-  }
-
-  if (taskType === "matching") {
-    setHelpTextAfterField("cpCorrectPairs", "Gebruik telkens de vorm links=rechts, één koppel per lijn.");
-  } else {
-    setHelpTextAfterField("cpCorrectPairs", "");
-  }
-
-  if (taskType === "imagePuzzle") {
-    setHelpTextAfterField("cpImageUrl", "Gebruik hier een duidelijke afbeelding die opgedeeld mag worden in puzzelstukjes.");
-  } else {
-    setHelpTextAfterField("cpImageUrl", "");
-  }
-
-  if (taskType === "photo") {
-    setHelpTextAfterField("cpQuestion", "Gebruik hier een duidelijke foto-opdracht, bijvoorbeeld wat leerlingen moeten vastleggen.");
-  } else {
-    setHelpTextAfterField("cpQuestion", "");
-  }
-}
-
 function updateCheckpointTaskVisibility() {
   const type = byId("cpTaskType")?.value || "text";
 
@@ -547,8 +386,6 @@ function updateCheckpointTaskVisibility() {
   byId("cpMatchingWrapper")?.classList.toggle("hidden", type !== "matching");
   byId("cpImagePuzzleWrapper")?.classList.toggle("hidden", type !== "imagePuzzle");
   byId("cpPhotoWrapper")?.classList.toggle("hidden", type !== "photo");
-
-  updateSmartLabels();
 }
 
 function updateCheckpointFieldsByModules() {
@@ -603,33 +440,15 @@ function updateCheckpointFieldsByModules() {
     hideEl(huntersSection);
   }
 
-  const taskTypeSelect = byId("cpTaskType");
-  if (taskTypeSelect) {
-    const imagePuzzleOption = Array.from(taskTypeSelect.options).find(opt => opt.value === "imagePuzzle");
-    const photoOption = Array.from(taskTypeSelect.options).find(opt => opt.value === "photo");
+  const sabotageFieldsVisible = modules.usableItems || modules.sabotage || modules.effects || gt?.engine === "mol";
 
-    if (imagePuzzleOption) imagePuzzleOption.hidden = !modules.puzzles;
-    if (photoOption) photoOption.hidden = !modules.media;
-
-    if (!modules.puzzles && taskTypeSelect.value === "imagePuzzle") {
-      taskTypeSelect.value = "text";
-    }
-
-    if (!modules.media && taskTypeSelect.value === "photo") {
-      taskTypeSelect.value = "text";
-    }
-  }
-
-  const cpVideo = byId("cpVideo");
-  const cpAudio = byId("cpAudio");
-  const cpImage = byId("cpImage");
-
-  if (cpVideo) cpVideo.closest("div, .card")?.classList.toggle("hidden", !modules.media);
-  if (cpAudio) cpAudio.closest("div, .card")?.classList.toggle("hidden", !modules.media);
-  if (cpImage) cpImage.closest("div, .card")?.classList.toggle("hidden", !(modules.media || modules.puzzles));
+  byId("cpCollectibleActionType")?.closest("div, .card, .container")?.classList.toggle("hidden", false);
+  byId("cpCollectibleActionRange")?.closest("div")?.classList.toggle("hidden", false);
+  byId("cpCollectibleActionDuration")?.closest("div")?.classList.toggle("hidden", false);
+  byId("cpCollectibleActionValue")?.closest("div")?.classList.toggle("hidden", false);
+  byId("cpCollectibleTargetMode")?.closest("div")?.classList.toggle("hidden", false);
 
   updateCheckpointTaskVisibility();
-  updateSmartLabels();
 }
 
 function collectCheckpointFromEditor() {
@@ -667,71 +486,63 @@ function collectCheckpointFromEditor() {
     cp.correctPairs = parseCorrectPairs(byId("cpCorrectPairs")?.value || "");
   }
 
-  if (cp.taskType === "imagePuzzle" && modules.puzzles) {
+  if (cp.taskType === "imagePuzzle") {
     cp.imageUrl = byId("cpImageUrl")?.value?.trim() || "";
     cp.gridSize = Number(byId("cpGridSize")?.value || 3);
   }
 
-  if (modules.media || modules.puzzles) {
-    if (byId("cpVideo")?.value?.trim()) cp.video = byId("cpVideo").value.trim();
-    if (byId("cpAudio")?.value?.trim()) cp.audio = byId("cpAudio").value.trim();
-    if (byId("cpImage")?.value?.trim()) cp.image = byId("cpImage").value.trim();
+  if (byId("cpVideo")?.value?.trim()) cp.video = byId("cpVideo").value.trim();
+  if (byId("cpAudio")?.value?.trim()) cp.audio = byId("cpAudio").value.trim();
+  if (byId("cpImage")?.value?.trim()) cp.image = byId("cpImage").value.trim();
+
+  const collectibleName = byId("cpCollectibleName")?.value?.trim() || "";
+  if (collectibleName) {
+    cp.collectible = {
+      name: collectibleName,
+      icon: byId("cpCollectibleIcon")?.value || "❓",
+      description: byId("cpCollectibleDescription")?.value?.trim() || "",
+      lockedName: byId("cpCollectibleLockedName")?.value?.trim() || "Onbekend spoor",
+      lockedIcon: byId("cpCollectibleLockedIcon")?.value || "❓",
+      actionType: byId("cpCollectibleActionType")?.value || null,
+      actionRange: Number(byId("cpCollectibleActionRange")?.value || 25),
+      actionDuration: Number(byId("cpCollectibleActionDuration")?.value || 30),
+      actionValue: Number(byId("cpCollectibleActionValue")?.value || 15),
+      targetMode: byId("cpCollectibleTargetMode")?.value || "enemy"
+    };
   }
 
-  if (modules.collectibles || modules.inventory || modules.evidenceBook || modules.usableItems) {
-    const collectibleName = byId("cpCollectibleName")?.value?.trim() || "";
-    if (collectibleName) {
-      cp.collectible = {
-        name: collectibleName,
-        icon: byId("cpCollectibleIcon")?.value || "❓",
-        description: byId("cpCollectibleDescription")?.value?.trim() || "",
-        lockedName: byId("cpCollectibleLockedName")?.value?.trim() || "Onbekend spoor",
-        lockedIcon: byId("cpCollectibleLockedIcon")?.value || "❓"
-      };
-    }
+  const cLat = byId("cpCollectibleLat")?.value;
+  const cLng = byId("cpCollectibleLng")?.value;
+  if (cLat && cLng) {
+    cp.collectibleCoords = [Number(cLat), Number(cLng)];
   }
 
-  if (modules.collectibles || modules.searchZones || modules.hiddenReveal || modules.clickableItems) {
-    const cLat = byId("cpCollectibleLat")?.value;
-    const cLng = byId("cpCollectibleLng")?.value;
-    if (cLat && cLng) {
-      cp.collectibleCoords = [Number(cLat), Number(cLng)];
-    }
-
-    if (byId("cpCollectibleSearchRadius")?.value) {
-      cp.collectibleSearchRadius = Number(byId("cpCollectibleSearchRadius").value);
-    }
-
-    if (byId("cpCollectibleRevealDistance")?.value) {
-      cp.collectibleRevealDistance = Number(byId("cpCollectibleRevealDistance").value);
-    }
+  if (byId("cpCollectibleSearchRadius")?.value) {
+    cp.collectibleSearchRadius = Number(byId("cpCollectibleSearchRadius").value);
   }
 
-  if (modules.evidenceBook || modules.fingerprints || modules.fakeClues || modules.deduction) {
-    const suspectName = byId("cpSuspectName")?.value?.trim() || "";
-    const dialogText = byId("cpDialogText")?.value?.trim() || "";
-
-    if (suspectName) cp.suspectName = suspectName;
-    if (dialogText) cp.dialogText = dialogText;
-    if (byId("cpHasFingerprint")?.checked) cp.hasFingerprint = true;
-    if (byId("cpIsFakeClue")?.checked) cp.isFakeClue = true;
-    if (byId("cpEvidenceIsCritical")?.checked) cp.evidenceIsCritical = true;
-    if (byId("cpFingerprintLabel")?.value?.trim()) cp.fingerprintLabel = byId("cpFingerprintLabel").value.trim();
+  if (byId("cpCollectibleRevealDistance")?.value) {
+    cp.collectibleRevealDistance = Number(byId("cpCollectibleRevealDistance").value);
   }
 
-  if (modules.sabotage || modules.secretRoles || modules.effects) {
-    if (byId("cpSabotageHint")?.value?.trim()) cp.sabotageHint = byId("cpSabotageHint").value.trim();
-    if (byId("cpCanTriggerSabotage")?.checked) cp.canTriggerSabotage = true;
-    if (byId("cpSecretObjective")?.checked) cp.secretObjective = true;
-    if (byId("cpSecretObjectiveText")?.value?.trim()) cp.secretObjectiveText = byId("cpSecretObjectiveText").value.trim();
-  }
+  const suspectName = byId("cpSuspectName")?.value?.trim() || "";
+  const dialogText = byId("cpDialogText")?.value?.trim() || "";
+  if (suspectName) cp.suspectName = suspectName;
+  if (dialogText) cp.dialogText = dialogText;
+  if (byId("cpHasFingerprint")?.checked) cp.hasFingerprint = true;
+  if (byId("cpIsFakeClue")?.checked) cp.isFakeClue = true;
+  if (byId("cpEvidenceIsCritical")?.checked) cp.evidenceIsCritical = true;
+  if (byId("cpFingerprintLabel")?.value?.trim()) cp.fingerprintLabel = byId("cpFingerprintLabel").value.trim();
 
-  if (modules.chase || modules.roleSwitch || modules.publicRoles) {
-    if (byId("cpCanSwitchRoles")?.checked) cp.canSwitchRoles = true;
-    if (byId("cpCanTriggerChase")?.checked) cp.canTriggerChase = true;
-    if (byId("cpRoleSwitchValue")?.value) cp.roleSwitchValue = Number(byId("cpRoleSwitchValue").value);
-    if (byId("cpChaseRadius")?.value) cp.chaseRadius = Number(byId("cpChaseRadius").value);
-  }
+  if (byId("cpSabotageHint")?.value?.trim()) cp.sabotageHint = byId("cpSabotageHint").value.trim();
+  if (byId("cpCanTriggerSabotage")?.checked) cp.canTriggerSabotage = true;
+  if (byId("cpSecretObjective")?.checked) cp.secretObjective = true;
+  if (byId("cpSecretObjectiveText")?.value?.trim()) cp.secretObjectiveText = byId("cpSecretObjectiveText").value.trim();
+
+  if (byId("cpCanSwitchRoles")?.checked) cp.canSwitchRoles = true;
+  if (byId("cpCanTriggerChase")?.checked) cp.canTriggerChase = true;
+  if (byId("cpRoleSwitchValue")?.value) cp.roleSwitchValue = Number(byId("cpRoleSwitchValue").value);
+  if (byId("cpChaseRadius")?.value) cp.chaseRadius = Number(byId("cpChaseRadius").value);
 
   return cp;
 }
@@ -742,6 +553,7 @@ function clearCheckpointEditor() {
     "cpLeftItems","cpRightItems","cpCorrectPairs","cpImageUrl","cpGridSize","cpVideo","cpAudio","cpImage",
     "cpPointsCorrect","cpPointsAfterMaxTries","cpCollectibleName","cpCollectibleLockedName","cpCollectibleDescription",
     "cpCollectibleLat","cpCollectibleLng","cpCollectibleSearchRadius","cpCollectibleRevealDistance",
+    "cpCollectibleActionRange","cpCollectibleActionDuration","cpCollectibleActionValue",
     "cpSuspectName","cpDialogText","cpFingerprintLabel","cpSabotageHint","cpSecretObjectiveText",
     "cpRoleSwitchValue","cpChaseRadius"
   ].forEach((id) => {
@@ -751,6 +563,8 @@ function clearCheckpointEditor() {
   if (byId("cpTaskType")) byId("cpTaskType").value = "text";
   if (byId("cpCollectibleIcon")) byId("cpCollectibleIcon").value = "";
   if (byId("cpCollectibleLockedIcon")) byId("cpCollectibleLockedIcon").value = "❓";
+  if (byId("cpCollectibleActionType")) byId("cpCollectibleActionType").value = "";
+  if (byId("cpCollectibleTargetMode")) byId("cpCollectibleTargetMode").value = "enemy";
 
   [
     "cpHasFingerprint","cpIsFakeClue","cpEvidenceIsCritical",
@@ -796,6 +610,12 @@ function loadCheckpointIntoEditor(index) {
   byId("cpCollectibleLockedIcon").value = cp.collectible?.lockedIcon || "❓";
   byId("cpCollectibleLockedName").value = cp.collectible?.lockedName || "";
   byId("cpCollectibleDescription").value = cp.collectible?.description || "";
+  byId("cpCollectibleActionType").value = cp.collectible?.actionType || "";
+  byId("cpCollectibleActionRange").value = cp.collectible?.actionRange ?? "";
+  byId("cpCollectibleActionDuration").value = cp.collectible?.actionDuration ?? "";
+  byId("cpCollectibleActionValue").value = cp.collectible?.actionValue ?? "";
+  byId("cpCollectibleTargetMode").value = cp.collectible?.targetMode || "enemy";
+
   byId("cpCollectibleLat").value = cp.collectibleCoords?.[0] ?? "";
   byId("cpCollectibleLng").value = cp.collectibleCoords?.[1] ?? "";
   byId("cpCollectibleSearchRadius").value = cp.collectibleSearchRadius ?? "";
@@ -831,13 +651,18 @@ function renderCheckpointList() {
     return;
   }
 
-  container.innerHTML = currentCheckpoints.map((cp, index) => `
-    <div class="group-card">
-      <strong>${index + 1}. ${cp.name || "Checkpoint"}</strong><br>
-      ${Array.isArray(cp.coords) ? `${cp.coords[0]}, ${cp.coords[1]}` : "-"}<br><br>
-      <button type="button" data-cp-index="${index}">Bewerk checkpoint</button>
-    </div>
-  `).join("");
+  container.innerHTML = currentCheckpoints.map((cp, index) => {
+    const action = cp.collectible?.actionType ? ` | actie: ${cp.collectible.actionType}` : "";
+    return `
+      <div class="group-card">
+        <strong>${index + 1}. ${cp.name || "Checkpoint"}</strong><br>
+        ${Array.isArray(cp.coords) ? `${cp.coords[0]}, ${cp.coords[1]}` : "-"}<br>
+        ${cp.collectible?.name ? `Item: ${cp.collectible.name}${action}<br>` : ""}
+        <br>
+        <button type="button" data-cp-index="${index}">Bewerk checkpoint</button>
+      </div>
+    `;
+  }).join("");
 
   container.querySelectorAll("[data-cp-index]").forEach((btn) => {
     btn.addEventListener("click", () => {
