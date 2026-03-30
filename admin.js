@@ -195,19 +195,6 @@ function hideEl(el) {
   el.style.display = "none";
 }
 
-function setFieldVisibility(id, visible) {
-  const el = byId(id);
-  if (!el) return;
-  const wrapper = el.closest(".card, div, label") || el;
-  if (visible) {
-    wrapper.classList.remove("hidden");
-    wrapper.style.display = "";
-  } else {
-    wrapper.classList.add("hidden");
-    wrapper.style.display = "none";
-  }
-}
-
 function populateCitySelector() {
   const selector = byId("adminCitySelector");
   if (!selector) return;
@@ -391,6 +378,167 @@ function getInventoryLabelFromModules() {
   return "Extra item";
 }
 
+function setLabelText(forId, text) {
+  const el = byId(forId);
+  if (!el) return;
+  const label = document.querySelector(`label[for="${forId}"]`);
+  if (label) label.innerText = text;
+}
+
+function setPlaceholder(id, text) {
+  const el = byId(id);
+  if (el) el.placeholder = text;
+}
+
+function setHelpTextAfterField(id, text) {
+  const el = byId(id);
+  if (!el) return;
+
+  const wrapper = el.parentElement;
+  if (!wrapper) return;
+
+  let help = wrapper.querySelector(`.dynamic-help[data-help-for="${id}"]`);
+  if (!text) {
+    if (help) help.remove();
+    return;
+  }
+
+  if (!help) {
+    help = document.createElement("p");
+    help.className = "small-note dynamic-help";
+    help.dataset.helpFor = id;
+    wrapper.appendChild(help);
+  }
+
+  help.innerText = text;
+}
+
+function updateSmartLabels() {
+  const modules = getActiveModules();
+  const engine = getSelectedGameType()?.engine || "classic";
+  const taskType = byId("cpTaskType")?.value || "text";
+
+  setLabelText("cpQuestion", "Vraag / opdracht");
+  setPlaceholder("cpQuestion", "Vraag of opdracht voor de leerlingen");
+
+  setLabelText("cpStory", "Verhaaltekst / sfeer");
+  setPlaceholder("cpStory", "Sfeer, context of verhaal bij dit checkpoint");
+
+  setLabelText("cpAnswers", "Juiste antwoorden");
+  setPlaceholder("cpAnswers", "Juiste antwoorden, gescheiden door komma's");
+
+  setLabelText("cpOptions", "Antwoordopties");
+  setPlaceholder("cpOptions", "Antwoordopties, gescheiden door komma's");
+
+  setLabelText("cpCorrectOption", "Juiste optie");
+  setPlaceholder("cpCorrectOption", "Index juiste optie, start bij 0");
+
+  setLabelText("cpCollectibleName", "Naam item");
+  setPlaceholder("cpCollectibleName", "Naam van het item");
+
+  setLabelText("cpCollectibleDescription", "Beschrijving item");
+  setPlaceholder("cpCollectibleDescription", "Beschrijving of betekenis van het item");
+
+  setLabelText("cpDialogText", "Dialoog / getuigenis");
+  setPlaceholder("cpDialogText", "Tekst van getuige, NPC of verdacht gesprek");
+
+  setLabelText("cpSabotageHint", "Sabotagebeschrijving");
+  setPlaceholder("cpSabotageHint", "Beschrijving van sabotage of geheime actie");
+
+  setLabelText("cpSecretObjectiveText", "Geheime opdracht");
+  setPlaceholder("cpSecretObjectiveText", "Geheime opdracht of verborgen doel");
+
+  if (engine === "murder" || modules.evidenceBook) {
+    setLabelText("cpQuestion", "Onderzoeksvraag / opdracht");
+    setPlaceholder("cpQuestion", "Welke observatie, redenering of analyse moeten leerlingen hier maken?");
+
+    setLabelText("cpStory", "Zaakcontext / sfeer");
+    setPlaceholder("cpStory", "Context rond de zaak, locatie of gebeurtenis");
+
+    setLabelText("cpCollectibleName", "Naam bewijsstuk");
+    setPlaceholder("cpCollectibleName", "Bijvoorbeeld: bebloed mes, brief, ring");
+
+    setLabelText("cpCollectibleDescription", "Beschrijving bewijsstuk");
+    setPlaceholder("cpCollectibleDescription", "Wat vertelt dit bewijsstuk? Waarom is het belangrijk?");
+
+    setLabelText("cpDialogText", "Getuigenis / ondervraging");
+    setPlaceholder("cpDialogText", "Fictieve getuigenis, verklaring of dialoog");
+  }
+
+  if (engine === "collectibles" || modules.collectibles) {
+    setLabelText("cpQuestion", "Vraag / ontdek-opdracht");
+    setPlaceholder("cpQuestion", "Vraag of opdracht die het collectible vrijspeelt");
+
+    setLabelText("cpStory", "Grimoiretekst / sfeer");
+    setPlaceholder("cpStory", "Verhaaltekst, sfeer of context voor dit verzamelobject");
+
+    setLabelText("cpCollectibleName", "Naam collectible");
+    setPlaceholder("cpCollectibleName", "Bijvoorbeeld: ritueel mes, oude munt, runesteen");
+
+    setLabelText("cpCollectibleDescription", "Grimoiretekst / itembeschrijving");
+    setPlaceholder("cpCollectibleDescription", "Wat leren leerlingen over dit object?");
+  }
+
+  if (modules.usableItems) {
+    setLabelText("cpCollectibleDescription", "Beschrijving / effect van item");
+    setPlaceholder("cpCollectibleDescription", "Wat doet dit item? Waarvoor kan het gebruikt worden?");
+  }
+
+  if (engine === "mol" || modules.sabotage || modules.secretRoles) {
+    setLabelText("cpQuestion", "Vraag / checkpoint-opdracht");
+    setPlaceholder("cpQuestion", "Vraag of opdracht die sabotage of geheime info kan vrijspelen");
+
+    setLabelText("cpCollectibleName", "Naam item / sabotage-object");
+    setPlaceholder("cpCollectibleName", "Bijvoorbeeld: rookbom, vloekkaart, schild");
+
+    setLabelText("cpCollectibleDescription", "Beschrijving item / sabotage");
+    setPlaceholder("cpCollectibleDescription", "Wat doet dit item? Op wie werkt het?");
+
+    setLabelText("cpSabotageHint", "Hint voor sabotage of geheime actie");
+    setPlaceholder("cpSabotageHint", "Beschrijf welke sabotage hier mogelijk is of wat de mol ermee kan doen");
+
+    setLabelText("cpSecretObjectiveText", "Geheime opdracht / mol-doel");
+    setPlaceholder("cpSecretObjectiveText", "Bijvoorbeeld: steel punten van een ander team");
+  }
+
+  if (engine === "hunters" || modules.chase) {
+    setLabelText("cpQuestion", "Vraag / jacht-opdracht");
+    setPlaceholder("cpQuestion", "Vraag of opdracht die jachtfase of rolwissel beïnvloedt");
+
+    setLabelText("cpCollectibleName", "Naam jacht-item");
+    setPlaceholder("cpCollectibleName", "Bijvoorbeeld: tracker, val, rooksignaal");
+
+    setLabelText("cpCollectibleDescription", "Beschrijving jacht-item");
+    setPlaceholder("cpCollectibleDescription", "Hoe helpt dit item bij jagen of ontsnappen?");
+  }
+
+  if (taskType === "multipleChoice") {
+    setHelpTextAfterField("cpOptions", "Geef de antwoordopties in dezelfde volgorde als ze getoond moeten worden.");
+    setHelpTextAfterField("cpCorrectOption", "De eerste optie heeft index 0, de tweede 1, enzovoort.");
+  } else {
+    setHelpTextAfterField("cpOptions", "");
+    setHelpTextAfterField("cpCorrectOption", "");
+  }
+
+  if (taskType === "matching") {
+    setHelpTextAfterField("cpCorrectPairs", "Gebruik telkens de vorm links=rechts, één koppel per lijn.");
+  } else {
+    setHelpTextAfterField("cpCorrectPairs", "");
+  }
+
+  if (taskType === "imagePuzzle") {
+    setHelpTextAfterField("cpImageUrl", "Gebruik hier een duidelijke afbeelding die opgedeeld mag worden in puzzelstukjes.");
+  } else {
+    setHelpTextAfterField("cpImageUrl", "");
+  }
+
+  if (taskType === "photo") {
+    setHelpTextAfterField("cpQuestion", "Gebruik hier een duidelijke foto-opdracht, bijvoorbeeld wat leerlingen moeten vastleggen.");
+  } else {
+    setHelpTextAfterField("cpQuestion", "");
+  }
+}
+
 function updateCheckpointTaskVisibility() {
   const type = byId("cpTaskType")?.value || "text";
 
@@ -399,6 +547,8 @@ function updateCheckpointTaskVisibility() {
   byId("cpMatchingWrapper")?.classList.toggle("hidden", type !== "matching");
   byId("cpImagePuzzleWrapper")?.classList.toggle("hidden", type !== "imagePuzzle");
   byId("cpPhotoWrapper")?.classList.toggle("hidden", type !== "photo");
+
+  updateSmartLabels();
 }
 
 function updateCheckpointFieldsByModules() {
@@ -470,11 +620,16 @@ function updateCheckpointFieldsByModules() {
     }
   }
 
-  setFieldVisibility("cpVideo", modules.media);
-  setFieldVisibility("cpAudio", modules.media);
-  setFieldVisibility("cpImage", modules.media || modules.puzzles);
+  const cpVideo = byId("cpVideo");
+  const cpAudio = byId("cpAudio");
+  const cpImage = byId("cpImage");
+
+  if (cpVideo) cpVideo.closest("div, .card")?.classList.toggle("hidden", !modules.media);
+  if (cpAudio) cpAudio.closest("div, .card")?.classList.toggle("hidden", !modules.media);
+  if (cpImage) cpImage.closest("div, .card")?.classList.toggle("hidden", !(modules.media || modules.puzzles));
 
   updateCheckpointTaskVisibility();
+  updateSmartLabels();
 }
 
 function collectCheckpointFromEditor() {
