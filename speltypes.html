@@ -4,7 +4,57 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Speltypes beheren</title>
-  <link rel="stylesheet" href="style.css?v=20260330-icons-1">
+  <link rel="stylesheet" href="style.css?v=20260330-speltypes-icons-1">
+  <style>
+    .section-divider {
+      height: 1px;
+      background: rgba(255,255,255,0.08);
+      margin: 18px 0;
+    }
+
+    .triple-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+    }
+
+    .icon-preview-grid {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 10px;
+      margin-top: 12px;
+    }
+
+    .icon-preview-card {
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 14px;
+      padding: 12px;
+      text-align: center;
+    }
+
+    .icon-preview-emoji {
+      font-size: 30px;
+      line-height: 1;
+      margin-bottom: 8px;
+    }
+
+    .inline-note {
+      font-size: 13px;
+      opacity: 0.82;
+      margin-top: -4px;
+      margin-bottom: 12px;
+    }
+
+    @media (max-width: 900px) {
+      .triple-grid,
+      .icon-preview-grid,
+      .button-grid,
+      .checkbox-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
 </head>
 <body>
   <div id="loginScreen" class="container">
@@ -22,6 +72,7 @@
       <div class="card">
         <h1>Speltypes beheren</h1>
         <p id="loginStatus"></p>
+
         <div class="button-grid">
           <button onclick="logout()">Logout</button>
           <button type="button" onclick="window.location.href='admin.html'">Terug naar admin</button>
@@ -45,10 +96,14 @@
         <h2>Basis</h2>
 
         <label for="gameTypeId">Interne ID</label>
-        <input id="gameTypeId" type="text" placeholder="bv. de_mol">
+        <input id="gameTypeId" type="text" placeholder="bv. heksenjacht">
+
+        <p class="small-note">
+          Unieke technische naam van het speltype. Gebruik best kleine letters en underscores.
+        </p>
 
         <label for="gameTypeName">Naam speltype</label>
-        <input id="gameTypeName" type="text" placeholder="bv. De mol">
+        <input id="gameTypeName" type="text" placeholder="bv. Heksenjacht">
 
         <label for="gameTypeDescription">Beschrijving</label>
         <textarea id="gameTypeDescription" placeholder="Korte uitleg van dit speltype"></textarea>
@@ -75,34 +130,68 @@
 
       <div class="card">
         <h2>Kaarticonen</h2>
-        <p class="small-note">Deze iconen worden gebruikt op de leerlingkaart. Kies per speltype welke symbolen zichtbaar zijn.</p>
+        <p class="small-note">
+          Deze iconen worden gebruikt op de kaart in het leerlingenspel. Zo kan elk speltype een eigen visuele stijl krijgen.
+        </p>
 
-        <label for="mapIconCheckpoint">Checkpoint-icoon</label>
-        <select id="mapIconCheckpoint"></select>
+        <div class="triple-grid">
+          <div>
+            <label for="mapIconCheckpoint">Actief checkpoint</label>
+            <select id="mapIconCheckpoint"></select>
+          </div>
 
-        <label for="mapIconDone">Voltooid checkpoint</label>
-        <select id="mapIconDone"></select>
+          <div>
+            <label for="mapIconDone">Afgerond checkpoint</label>
+            <select id="mapIconDone"></select>
+          </div>
 
-        <label for="mapIconCollectible">Collectible</label>
-        <select id="mapIconCollectible"></select>
+          <div>
+            <label for="mapIconCollectible">Collectible</label>
+            <select id="mapIconCollectible"></select>
+          </div>
+        </div>
 
-        <label for="mapIconPlayer">Eigen positie</label>
-        <select id="mapIconPlayer"></select>
+        <div class="triple-grid">
+          <div>
+            <label for="mapIconPlayer">Eigen positie</label>
+            <select id="mapIconPlayer"></select>
+          </div>
 
-        <label for="mapIconGather">Verzamelpunt</label>
-        <select id="mapIconGather"></select>
+          <div>
+            <label for="mapIconGather">Verzamelpunt / eindpunt</label>
+            <select id="mapIconGather"></select>
+          </div>
 
-        <div class="info-list">
-          <p><strong>Checkpoint</strong> is het actieve doel dat leerlingen moeten bereiken.</p>
-          <p><strong>Voltooid checkpoint</strong> is vooral nuttig voor teacherzicht of latere uitbreidingen.</p>
-          <p><strong>Collectible</strong> verschijnt pas wanneer leerlingen dicht genoeg zijn bij de zoeklocatie.</p>
-          <p><strong>Eigen positie</strong> is de eigen groep van de leerling.</p>
-          <p><strong>Verzamelpunt</strong> verschijnt pas op het einde van de route.</p>
+          <div></div>
+        </div>
+
+        <div class="icon-preview-grid">
+          <div class="icon-preview-card">
+            <div class="icon-preview-emoji" id="previewCheckpoint">🎯</div>
+            <div>Checkpoint</div>
+          </div>
+          <div class="icon-preview-card">
+            <div class="icon-preview-emoji" id="previewDone">✅</div>
+            <div>Afgerond</div>
+          </div>
+          <div class="icon-preview-card">
+            <div class="icon-preview-emoji" id="previewCollectible">✨</div>
+            <div>Collectible</div>
+          </div>
+          <div class="icon-preview-card">
+            <div class="icon-preview-emoji" id="previewPlayer">🚶</div>
+            <div>Speler</div>
+          </div>
+          <div class="icon-preview-card">
+            <div class="icon-preview-emoji" id="previewGather">⭐</div>
+            <div>Verzamelpunt</div>
+          </div>
         </div>
       </div>
 
       <div class="card">
         <h2>Modules</h2>
+
         <div class="checkbox-grid">
           <label><input type="checkbox" id="modNavigation"> Navigatie</label>
           <label><input type="checkbox" id="modQuestions"> Vragen / opdrachten</label>
@@ -112,226 +201,323 @@
           <label><input type="checkbox" id="modStory"> Verhaallaag</label>
           <label><input type="checkbox" id="modDialogs"> Dialogen / NPC-tekst</label>
           <label><input type="checkbox" id="modMedia"> Media</label>
-          <label><input type="checkbox" id="modInventory"> Inventory / grimoire</label>
+          <label><input type="checkbox" id="modInventory"> Inventory / rugzak</label>
           <label><input type="checkbox" id="modCollectibles"> Collectibles</label>
           <label><input type="checkbox" id="modSearchZones"> Zoekzones</label>
-          <label><input type="checkbox" id="modHiddenReveal"> Reveal dichtbij</label>
-          <label><input type="checkbox" id="modClickableItems"> Klikbare items</label>
+          <label><input type="checkbox" id="modHiddenReveal"> Object pas zichtbaar dichtbij</label>
+          <label><input type="checkbox" id="modClickableItems"> Object aanklikken om te nemen</label>
           <label><input type="checkbox" id="modUsableItems"> Bruikbare items</label>
           <label><input type="checkbox" id="modEvidenceBook"> Bewijsboek / dossier</label>
-          <label><input type="checkbox" id="modFingerprints"> Vingerafdrukken</label>
+          <label><input type="checkbox" id="modFingerprints"> Vingerafdrukken / sporen</label>
           <label><input type="checkbox" id="modFakeClues"> Valse sporen</label>
-          <label><input type="checkbox" id="modDeduction"> Finale deductie</label>
+          <label><input type="checkbox" id="modDeduction"> Finale deductie / beschuldiging</label>
           <label><input type="checkbox" id="modSecretRoles"> Geheime rollen</label>
           <label><input type="checkbox" id="modPublicRoles"> Zichtbare rollen</label>
-          <label><input type="checkbox" id="modRoleSwitch"> Rollen wisselen</label>
-          <label><input type="checkbox" id="modAbilities"> Speciale vaardigheden</label>
-          <label><input type="checkbox" id="modProximity"> Nabijheid</label>
+          <label><input type="checkbox" id="modRoleSwitch"> Rollen kunnen wisselen</label>
+          <label><input type="checkbox" id="modAbilities"> Speciale teamvaardigheden</label>
+          <label><input type="checkbox" id="modProximity"> Nabijheid tussen teams</label>
           <label><input type="checkbox" id="modSabotage"> Sabotage</label>
           <label><input type="checkbox" id="modEffects"> Tijdelijke effecten</label>
-          <label><input type="checkbox" id="modChase"> Jacht</label>
+          <label><input type="checkbox" id="modChase"> Jacht / achtervolging</label>
           <label><input type="checkbox" id="modZoneControl"> Zoneverovering</label>
-          <label><input type="checkbox" id="modTrading"> Handel</label>
-          <label><input type="checkbox" id="modResources"> Resources</label>
-          <label><input type="checkbox" id="modPuzzles"> Puzzelketen</label>
-          <label><input type="checkbox" id="modDiscovery"> Verkenning</label>
+          <label><input type="checkbox" id="modTrading"> Handel en ruil</label>
+          <label><input type="checkbox" id="modResources"> Resources / energie</label>
+          <label><input type="checkbox" id="modPuzzles"> Puzzelketen / escape</label>
+          <label><input type="checkbox" id="modDiscovery"> Vrije verkenning</label>
           <label><input type="checkbox" id="modTeacherControls"> Teacher controls</label>
         </div>
       </div>
 
       <div class="card">
-        <h2>Regels</h2>
+        <h2>Spelregels</h2>
 
-        <label for="rulesCheckpointFlow">Flow checkpoints</label>
-        <select id="rulesCheckpointFlow">
-          <option value="rotatingRoute">Roterende start</option>
-          <option value="fixedRoute">Vaste route</option>
-        </select>
-
-        <label for="rulesFinalObjective">Einddoel</label>
-        <select id="rulesFinalObjective">
-          <option value="gatherPoint">Verzamelpunt</option>
-          <option value="finishCheckpoint">Laatste checkpoint</option>
-        </select>
-
-        <label for="rulesScoreMode">Scoremodus</label>
-        <select id="rulesScoreMode">
-          <option value="normal">Normaal</option>
-          <option value="fastBonus">Snelheid telt mee</option>
-        </select>
-
-        <label for="rulesAllowRetries">Pogingen</label>
-        <select id="rulesAllowRetries">
-          <option value="limited">Beperkt</option>
-          <option value="unlimited">Onbeperkt</option>
-        </select>
-
-        <label for="rulesMaxTries">Maximum aantal pogingen</label>
-        <input id="rulesMaxTries" type="number" min="1" value="3">
-
-        <label for="rulesWrongAnswerPenalty">Fout antwoord</label>
-        <select id="rulesWrongAnswerPenalty">
-          <option value="none">Geen straf</option>
-          <option value="losePoints">Puntenverlies</option>
-          <option value="skipCollectible">Geen collectible</option>
-        </select>
-      </div>
-
-      <div class="card">
-        <h2>Timer</h2>
-
-        <label for="timerMode">Timer modus</label>
-        <select id="timerMode">
-          <option value="global">Globaal</option>
-          <option value="checkpoint">Per checkpoint</option>
-          <option value="hybrid">Combinatie</option>
-          <option value="none">Geen timer</option>
-        </select>
-
-        <div class="button-grid">
+        <div class="triple-grid">
           <div>
-            <label for="timerTotalMinutes">Totale minuten</label>
-            <input id="timerTotalMinutes" type="number" value="90">
+            <label for="rulesCheckpointFlow">Checkpointflow</label>
+            <select id="rulesCheckpointFlow">
+              <option value="rotatingRoute">Rotating route</option>
+              <option value="fixedRoute">Vaste route</option>
+              <option value="freeRoute">Vrije route</option>
+            </select>
           </div>
+
           <div>
-            <label for="timerCheckpointSeconds">Per checkpoint (sec)</label>
-            <input id="timerCheckpointSeconds" type="number" value="0">
+            <label for="rulesFinalObjective">Finale doel</label>
+            <select id="rulesFinalObjective">
+              <option value="gatherPoint">Verzamelpunt</option>
+              <option value="lastCheckpoint">Laatste checkpoint</option>
+            </select>
+          </div>
+
+          <div>
+            <label for="rulesScoreMode">Scoremodus</label>
+            <select id="rulesScoreMode">
+              <option value="normal">Normaal</option>
+              <option value="race">Race</option>
+              <option value="survival">Survival</option>
+            </select>
           </div>
         </div>
 
-        <label for="timerExpiryAction">Actie bij tijd op</label>
-        <select id="timerExpiryAction">
-          <option value="endGame">Spel stopt</option>
-          <option value="losePoints">Puntenaftrek</option>
-          <option value="forceNext">Automatisch verder</option>
-          <option value="lockCheckpoint">Checkpoint mislukt</option>
-        </select>
-      </div>
-
-      <div class="card">
-        <h2>Inventory</h2>
-        <label for="inventoryName">Naam inventory</label>
-        <input id="inventoryName" type="text" placeholder="bv. Grimoire">
-
-        <label for="inventoryMode">Weergave</label>
-        <select id="inventoryMode">
-          <option value="visual">Visueel</option>
-          <option value="list">Lijst</option>
-        </select>
-
-        <label for="inventoryCapacity">Maximum items</label>
-        <input id="inventoryCapacity" type="number" value="20">
-      </div>
-
-      <div class="card">
-        <h2>Collectibles</h2>
-        <label for="collectiblesUnlockCondition">Ontgrendelen collectible</label>
-        <select id="collectiblesUnlockCondition">
-          <option value="afterCorrect">Na juist antwoord</option>
-          <option value="afterMaxTries">Na max tries</option>
-          <option value="afterCorrectOrMaxTries">Na juist of max tries</option>
-          <option value="searchZoneAfterCorrect">Zoekzone na juist antwoord</option>
-          <option value="searchZoneAfterCorrectOrMaxTries">Zoekzone na juist of max tries</option>
-          <option value="none">Niet gebruiken</option>
-        </select>
-
-        <label for="collectiblesMapVisibility">Zichtbaarheid op kaart</label>
-        <select id="collectiblesMapVisibility">
-          <option value="blurZone">Enkel wazige zone</option>
-          <option value="alwaysVisible">Meteen zichtbaar</option>
-          <option value="hiddenUntilReveal">Verborgen tot reveal</option>
-        </select>
-
-        <div class="button-grid">
+        <div class="triple-grid">
           <div>
-            <label for="collectiblesSearchRadius">Zoekradius</label>
-            <input id="collectiblesSearchRadius" type="number" value="30">
+            <label for="rulesAllowRetries">Pogingen</label>
+            <select id="rulesAllowRetries">
+              <option value="limited">Beperkt</option>
+              <option value="unlimited">Onbeperkt</option>
+              <option value="none">Geen herkansing</option>
+            </select>
           </div>
+
           <div>
-            <label for="collectiblesRevealDistance">Reveal distance</label>
-            <input id="collectiblesRevealDistance" type="number" value="15">
+            <label for="rulesMaxTries">Maximum aantal pogingen</label>
+            <input id="rulesMaxTries" type="number" min="1" value="3">
           </div>
-        </div>
 
-        <label for="collectiblesContentType">Inhoudstype</label>
-        <select id="collectiblesContentType">
-          <option value="story">Verhaal</option>
-          <option value="usableItem">Bruikbaar item</option>
-          <option value="clue">Clue</option>
-        </select>
-      </div>
-
-      <div class="card">
-        <h2>Bruikbare items</h2>
-        <label for="usableItemsTargetMode">Doelmodus</label>
-        <select id="usableItemsTargetMode">
-          <option value="enemy">Andere groep</option>
-          <option value="self">Eigen groep</option>
-          <option value="choice">Keuze bij gebruik</option>
-        </select>
-
-        <label for="usableItemsUseMode">Gebruiksmodus</label>
-        <select id="usableItemsUseMode">
-          <option value="manual">Handmatig</option>
-          <option value="instant">Meteen</option>
-        </select>
-
-        <label for="usableItemsCharges">Aantal uses</label>
-        <input id="usableItemsCharges" type="number" value="1">
-      </div>
-
-      <div class="card">
-        <h2>Effecten</h2>
-        <label><input type="checkbox" id="effectsEnabled"> Effecten actief</label>
-
-        <div class="checkbox-grid">
-          <label><input type="checkbox" id="effectMapBlur"> Wazige kaart</label>
-          <label><input type="checkbox" id="effectCompassOff"> Kompas uit</label>
-          <label><input type="checkbox" id="effectFreeze"> Freeze</label>
-          <label><input type="checkbox" id="effectScoreSteal"> Punten stelen</label>
-          <label><input type="checkbox" id="effectShield"> Schild</label>
-          <label><input type="checkbox" id="effectFakeTarget"> Fake target</label>
-          <label><input type="checkbox" id="effectFogOverlay"> Mist-overlay</label>
-          <label><input type="checkbox" id="effectNoInventory"> Geen inventory</label>
-          <label><input type="checkbox" id="effectNoMap"> Geen kaart</label>
-          <label><input type="checkbox" id="effectDoublePoints"> Dubbele punten</label>
-          <label><input type="checkbox" id="effectExtraTime"> Extra tijd</label>
-          <label><input type="checkbox" id="effectRevealEnemy"> Toon vijand</label>
-          <label><input type="checkbox" id="effectRevealCheckpoint"> Toon checkpoint</label>
-          <label><input type="checkbox" id="effectCleanse"> Cleanse</label>
-        </div>
-
-        <div class="button-grid">
           <div>
-            <label for="effectsDefaultDuration">Standaard duur (sec)</label>
-            <input id="effectsDefaultDuration" type="number" value="30">
-          </div>
-          <div>
-            <label for="effectsStackMode">Stapelen</label>
-            <select id="effectsStackMode">
-              <option value="replace">Vervangen</option>
-              <option value="stack">Stapelen</option>
+            <label for="rulesWrongAnswerPenalty">Bij fout antwoord</label>
+            <select id="rulesWrongAnswerPenalty">
+              <option value="skipCollectible">Geen collectible, wel volgend checkpoint</option>
+              <option value="none">Geen straf</option>
+              <option value="losePoints">Puntenverlies</option>
             </select>
           </div>
         </div>
       </div>
 
       <div class="card">
-        <h2>UI voor leerlingen</h2>
+        <h2>Timer</h2>
+
+        <div class="triple-grid">
+          <div>
+            <label for="timerMode">Timermodus</label>
+            <select id="timerMode">
+              <option value="global">Globale timer</option>
+              <option value="checkpoint">Per checkpoint</option>
+              <option value="hybrid">Hybride</option>
+              <option value="none">Geen timer</option>
+            </select>
+          </div>
+
+          <div>
+            <label for="timerTotalMinutes">Totale minuten</label>
+            <input id="timerTotalMinutes" type="number" min="0" value="90">
+          </div>
+
+          <div>
+            <label for="timerCheckpointSeconds">Seconden per checkpoint</label>
+            <input id="timerCheckpointSeconds" type="number" min="0" value="0">
+          </div>
+        </div>
+
+        <label for="timerExpiryAction">Actie wanneer timer afloopt</label>
+        <select id="timerExpiryAction">
+          <option value="endGame">Spel eindigt</option>
+          <option value="losePoints">Puntenverlies</option>
+          <option value="freeze">Bevriezen</option>
+          <option value="none">Geen actie</option>
+        </select>
+      </div>
+
+      <div class="card">
+        <h2>Inventory / dossier</h2>
+
+        <div class="triple-grid">
+          <div>
+            <label for="inventoryName">Naam inventory</label>
+            <input id="inventoryName" type="text" value="Grimoire">
+          </div>
+
+          <div>
+            <label for="inventoryMode">Weergave</label>
+            <select id="inventoryMode">
+              <option value="visual">Visueel</option>
+              <option value="list">Lijst</option>
+            </select>
+          </div>
+
+          <div>
+            <label for="inventoryCapacity">Capaciteit</label>
+            <input id="inventoryCapacity" type="number" min="1" value="20">
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Collectibles</h2>
+
+        <div class="triple-grid">
+          <div>
+            <label for="collectiblesUnlockCondition">Vrijgave collectible</label>
+            <select id="collectiblesUnlockCondition">
+              <option value="searchZoneAfterCorrect">Zoekzone na juist antwoord</option>
+              <option value="searchZoneAfterCorrectOrMaxTries">Zoekzone na juist antwoord of max pogingen</option>
+              <option value="afterCorrect">Rechtstreeks na juist antwoord</option>
+              <option value="afterCorrectOrMaxTries">Rechtstreeks na juist antwoord of max pogingen</option>
+              <option value="none">Geen collectibles</option>
+            </select>
+          </div>
+
+          <div>
+            <label for="collectiblesMapVisibility">Zichtbaarheid op kaart</label>
+            <select id="collectiblesMapVisibility">
+              <option value="blurZone">Wazige cirkel</option>
+              <option value="alwaysVisible">Altijd zichtbaar</option>
+              <option value="hiddenUntilNear">Verborgen tot dichtbij</option>
+            </select>
+          </div>
+
+          <div>
+            <label for="collectiblesContentType">Type inhoud</label>
+            <select id="collectiblesContentType">
+              <option value="usableItem">Bruikbaar item</option>
+              <option value="story">Verhaalitem</option>
+              <option value="clue">Clue / aanwijzing</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="triple-grid">
+          <div>
+            <label for="collectiblesSearchRadius">Zoekradius</label>
+            <input id="collectiblesSearchRadius" type="number" min="1" value="30">
+          </div>
+
+          <div>
+            <label for="collectiblesRevealDistance">Zichtbaar vanaf</label>
+            <input id="collectiblesRevealDistance" type="number" min="1" value="15">
+          </div>
+
+          <div></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Bruikbare items</h2>
+
+        <div class="triple-grid">
+          <div>
+            <label for="usableItemsTargetMode">Doelwit</label>
+            <select id="usableItemsTargetMode">
+              <option value="enemy">Andere groep</option>
+              <option value="self">Eigen groep</option>
+              <option value="both">Beide</option>
+            </select>
+          </div>
+
+          <div>
+            <label for="usableItemsUseMode">Gebruik</label>
+            <select id="usableItemsUseMode">
+              <option value="manual">Handmatig</option>
+              <option value="automatic">Automatisch</option>
+            </select>
+          </div>
+
+          <div>
+            <label for="usableItemsCharges">Aantal keer bruikbaar</label>
+            <input id="usableItemsCharges" type="number" min="1" value="1">
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Effecten / sabotage</h2>
+
+        <label>
+          <input type="checkbox" id="effectsEnabled">
+          Effecten en sabotage activeren
+        </label>
+
+        <div class="section-divider"></div>
+
         <div class="checkbox-grid">
-          <label><input type="checkbox" id="uiShowRanking" checked> Ranking tonen</label>
+          <label><input type="checkbox" id="effectMapBlur"> Wazige kaart</label>
+          <label><input type="checkbox" id="effectCompassOff"> Kompas uit</label>
+          <label><input type="checkbox" id="effectFreeze"> Bevriezen</label>
+          <label><input type="checkbox" id="effectScoreSteal"> Punten stelen</label>
+          <label><input type="checkbox" id="effectShield"> Schild</label>
+          <label><input type="checkbox" id="effectFakeTarget"> Fout doelwit</label>
+          <label><input type="checkbox" id="effectFogOverlay"> Mistlaag</label>
+          <label><input type="checkbox" id="effectNoInventory"> Geen inventory</label>
+          <label><input type="checkbox" id="effectNoMap"> Geen kaart</label>
+          <label><input type="checkbox" id="effectDoublePoints"> Dubbele punten</label>
+          <label><input type="checkbox" id="effectExtraTime"> Extra tijd</label>
+          <label><input type="checkbox" id="effectRevealEnemy"> Vijand tonen</label>
+          <label><input type="checkbox" id="effectRevealCheckpoint"> Checkpoint tonen</label>
+          <label><input type="checkbox" id="effectCleanse"> Cleanse / zuiveren</label>
+        </div>
+
+        <div class="triple-grid">
+          <div>
+            <label for="effectsDefaultDuration">Standaard duur in seconden</label>
+            <input id="effectsDefaultDuration" type="number" min="1" value="40">
+          </div>
+
+          <div>
+            <label for="effectsStackMode">Stackmodus</label>
+            <select id="effectsStackMode">
+              <option value="replace">Vervangen</option>
+              <option value="stack">Stapelbaar</option>
+              <option value="ignore">Negeer bij actief effect</option>
+            </select>
+          </div>
+
+          <div></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>UI</h2>
+
+        <div class="checkbox-grid">
+          <label><input type="checkbox" id="uiShowRanking"> Ranking tonen</label>
           <label><input type="checkbox" id="uiShowTimer"> Timer tonen</label>
-          <label><input type="checkbox" id="uiShowInventory" checked> Inventory tonen</label>
+          <label><input type="checkbox" id="uiShowInventory"> Inventory tonen</label>
           <label><input type="checkbox" id="uiShowRoles"> Rollen tonen</label>
-          <label><input type="checkbox" id="uiShowScore" checked> Score tonen</label>
-          <label><input type="checkbox" id="uiShowDistance" checked> Afstand tonen</label>
-          <label><input type="checkbox" id="uiShowMap" checked> Kaart tonen</label>
-          <label><input type="checkbox" id="uiShowCompass" checked> Kompas tonen</label>
+          <label><input type="checkbox" id="uiShowScore"> Score tonen</label>
+          <label><input type="checkbox" id="uiShowDistance"> Afstand tonen</label>
+          <label><input type="checkbox" id="uiShowMap"> Kaart tonen</label>
+          <label><input type="checkbox" id="uiShowCompass"> Kompas tonen</label>
         </div>
       </div>
     </div>
   </div>
 
-  <script type="module" src="speltypes.js?v=20260330-icons-1"></script>
+  <script type="module" src="speltypes.js"></script>
+  <script>
+    function bindIconPreview(selectId, previewId) {
+      const select = document.getElementById(selectId);
+      const preview = document.getElementById(previewId);
+      if (!select || !preview) return;
+
+      const sync = () => {
+        preview.textContent = select.value || "❓";
+      };
+
+      select.addEventListener("change", sync);
+      sync();
+    }
+
+    const waitForSelectors = setInterval(() => {
+      const ids = [
+        "mapIconCheckpoint",
+        "mapIconDone",
+        "mapIconCollectible",
+        "mapIconPlayer",
+        "mapIconGather"
+      ];
+
+      const ready = ids.every((id) => document.getElementById(id));
+      if (!ready) return;
+
+      clearInterval(waitForSelectors);
+
+      bindIconPreview("mapIconCheckpoint", "previewCheckpoint");
+      bindIconPreview("mapIconDone", "previewDone");
+      bindIconPreview("mapIconCollectible", "previewCollectible");
+      bindIconPreview("mapIconPlayer", "previewPlayer");
+      bindIconPreview("mapIconGather", "previewGather");
+    }, 200);
+  </script>
 </body>
 </html>
