@@ -57,6 +57,30 @@ body.modal-open {
   box-shadow: var(--theme-box-shadow);
 }
 
+.collectible-search-zone {
+  stroke: #d946ef;
+  fill: rgba(217, 70, 239, 0.1);
+}
+
+.pulse {
+  animation: pulseCircle 1.5s infinite;
+}
+
+@keyframes pulseCircle {
+  0% {
+    opacity: 0.2;
+    stroke-width: 2;
+  }
+  50% {
+    opacity: 0.6;
+    stroke-width: 6;
+  }
+  100% {
+    opacity: 0.2;
+    stroke-width: 2;
+  }
+}
+
 /* ===============================
    TITELS
 ================================ */
